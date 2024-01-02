@@ -1,8 +1,6 @@
 use crate::util;
-use crate::Client;
 use hex;
 use std::fs::{self, File};
-use std::io::Read;
 use std::io::Write;
 use std::os::linux::fs::MetadataExt;
 
@@ -28,8 +26,7 @@ struct IndexEntry {
     path: String,
 }
 
-pub fn add(client: Client, file_names: &[String]) {
-    println!("{}", client.root_dir);
+pub fn add(file_names: &[String]) {
     let mut hash_list = Vec::new();
     for file_name in file_names {
         let hash = generate_blob_object(file_name);
@@ -39,9 +36,7 @@ pub fn add(client: Client, file_names: &[String]) {
 }
 
 fn generate_blob_object(file_name: &String) -> String {
-    let mut f = File::open(file_name).unwrap();
-    let mut contents = String::new();
-    f.read_to_string(&mut contents).unwrap();
+    let contents = fs::read_to_string(file_name).unwrap();
     let file_length = contents.len();
 
     // データの準備
@@ -120,7 +115,6 @@ fn update_index(file_names: &[String], hash_list: Vec<String>) {
         for _ in 0..padding {
             content.push(0);
         }
-
     }
 
     let mut file = File::create(".git/index").unwrap();
