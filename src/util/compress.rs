@@ -16,3 +16,22 @@ pub fn hash(str: &String) -> String {
     let result = hasher.finalize();
     format!("{:x}", result)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_zlib_compress() {
+        let str = "test".to_string();
+        let result = zlib_compress(str);
+        assert_eq!(result, vec![120, 156, 43, 73, 45, 46, 1, 0, 4, 93, 1, 193]);
+    }
+
+    #[test]
+    fn test_hash() {
+        let str = "test".to_string();
+        let result = hash(&str);
+        assert_eq!(result, "a94a8fe5ccb19ba61c4c0873d391e987982fbbd3");
+    }
+}
