@@ -41,7 +41,7 @@ fn generate_blob_object(file_name: &String) -> String {
 
     // データの準備
     let header = format!("blob {}\0", file_length);
-    let hash = util::compress::hash(format!("{}{}", header, contents));
+    let hash = util::compress::hash(&format!("{}{}", header, contents));
 
     // ファイルの準備
     let file_directory = format!(".git/objects/{}", &hash[0..2]);

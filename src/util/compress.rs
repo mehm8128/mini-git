@@ -10,7 +10,7 @@ pub fn zlib_compress(str: String) -> Vec<u8> {
     e.finish().unwrap()
 }
 
-pub fn hash(str: String) -> String {
+pub fn hash(str: &String) -> String {
     let mut hasher = Sha1::new();
     hasher.update(str);
     let result = hasher.finalize();

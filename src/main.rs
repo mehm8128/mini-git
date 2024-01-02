@@ -2,6 +2,7 @@ use std::env;
 
 mod command;
 mod util;
+mod object;
 
 fn main() {
     let args: Vec<String> = env::args().collect();
@@ -24,7 +25,9 @@ fn main() {
             command::add::add(file_names);
         }
         "commit" => {
-            //TODO:impl
+            let file_names = &args[2..];
+            let message = "commit message";
+            command::commit::commit(file_names, message.to_string());
         }
         "log" => {
             //TODO: impl
