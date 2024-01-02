@@ -25,8 +25,7 @@ pub fn get_head_ref() -> String {
 
 pub fn get_head_commit() -> Option<String> {
     let head_ref = get_head_ref();
-    println!("{}", head_ref);
-    let head_commit = fs::read_to_string(format!(".git/{}", head_ref));
+    let head_commit = fs::read_to_string(head_ref);
     match head_commit {
         Ok(head_commit) => Some(head_commit),
         Err(ref e) if e.kind() == ErrorKind::NotFound => None,

@@ -1,20 +1,30 @@
 use crate::object::commit::{Commit, Sign};
 use crate::util;
+use std::io::Read;
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::{fs::File, io::Write};
 
-pub fn commit(file_names: &[String], message: String) {
-    for file_name in file_names {
-        generate_tree_object(file_name);
-    }
+pub fn commit(message: String) {
+    decode_index_file();
     let tree_hash = "".to_string();
     let commit_hash = generate_commit_object(tree_hash, message);
     update_head(commit_hash);
 }
 
-fn generate_tree_object(file_name: &String) {}
+fn decode_index_file() {
+    let mut file = File::open(".git/index").unwrap();
+    let mut content = Vec::new();
+    file.read_to_end(&mut content).unwrap();
+    println!("{:?}", content);
+}
 
 fn generate_commit_object(tree_hash: String, message: String) -> String {
     let parent = util::path::get_head_commit();
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
     let mut commit = Commit {
         hash: "".to_string(),
         size: 0,
@@ -26,12 +36,12 @@ fn generate_commit_object(tree_hash: String, message: String) -> String {
         author: Sign {
             name: "mehm8128".to_string(),
             email: "mehm8128@example.com".to_string(),
-            time_stamp: 0,
+            time_stamp: now,
         },
         commiter: Sign {
             name: "mehm8128".to_string(),
             email: "mehm8128@example.com".to_string(),
-            time_stamp: 0,
+            time_stamp: now,
         },
         message,
     };
@@ -56,13 +66,15 @@ fn generate_commit_object(tree_hash: String, message: String) -> String {
     std::fs::create_dir(file_directory).unwrap();
     let mut file = File::create(file_path).unwrap();
 
-    file.write_all(&content.into_bytes()).unwrap();
+    // zlib圧縮
+    let compressed_contents = util::compress::zlib_compress(content);
+    file.write_all(&compressed_contents).unwrap();
 
     commit.hash
 }
 
 fn update_head(commit_hash: String) {
     let head_ref = util::path::get_head_ref();
-    let mut file = File::open(head_ref).unwrap();
+    let mut file = File::create(head_ref).unwrap();
     file.write_all(commit_hash.as_bytes()).unwrap();
 }

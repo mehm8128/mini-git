@@ -11,7 +11,7 @@ pub struct Commit {
 pub struct Sign {
     pub name: String,
     pub email: String,
-    pub time_stamp: usize,
+    pub time_stamp: u64,
 }
 
 impl Sign {
