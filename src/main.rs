@@ -3,7 +3,7 @@ use std::env;
 mod command;
 mod util;
 
-struct Client {
+pub struct Client {
     root_dir: String,
 }
 
@@ -25,11 +25,11 @@ fn main() {
     }
 
     let client = Client::new(".".to_string());
-    println!("{}", client.root_dir);
 
     match command.as_str() {
         "add" => {
-            //TODO:impl
+            let file_names = &args[2..];
+            command::add::add(client, file_names);
         }
         "commit" => {
             //TODO:impl
