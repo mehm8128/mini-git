@@ -27,7 +27,8 @@ pub fn get_head_commit() -> Option<String> {
     let head_ref = get_head_ref();
     let head_commit = fs::read_to_string(head_ref);
     match head_commit {
-        Ok(head_commit) => Some(head_commit),
+        Ok(head_commit) if head_commit != "" => Some(head_commit),
+        Ok(_) => None,
         Err(ref e) if e.kind() == ErrorKind::NotFound => None,
         Err(e) => panic!("{}", e),
     }

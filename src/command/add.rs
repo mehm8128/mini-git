@@ -41,7 +41,7 @@ fn generate_blob_object(file_name: &String) -> String {
 
     // データの準備
     let header = format!("blob {}\0", file_length);
-    let hash = util::compress::hash(&format!("{}{}", header, contents));
+    let hash = util::compress::hash(&format!("{}{}", header, contents).as_bytes());
 
     // ファイルの準備
     let file_directory = format!(".git/objects/{}", &hash[0..2]);
@@ -51,7 +51,7 @@ fn generate_blob_object(file_name: &String) -> String {
 
     // zlib圧縮
     let contents_will_be_compressed = format!("{}{}", header, contents);
-    let compressed_contents = util::compress::zlib_compress(contents_will_be_compressed);
+    let compressed_contents = util::compress::zlib_compress(&contents_will_be_compressed.as_bytes());
 
     // ファイルに書き込み
     file.write_all(&compressed_contents).unwrap();

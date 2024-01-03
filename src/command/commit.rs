@@ -2,7 +2,7 @@ use crate::object::commit::{Commit, Sign};
 use crate::util;
 use byteorder::{BigEndian, ByteOrder};
 use hex;
-use std::io::Read;
+use std::io::{ErrorKind, Read};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{fs::File, io::Write};
@@ -16,7 +16,6 @@ enum NodeType {
 #[derive(Clone, Debug)]
 struct Node {
     node_type: NodeType,
-    parent: String,
     mode: u32,
     name: String,
     hash: String,
@@ -24,8 +23,17 @@ struct Node {
 }
 
 pub fn commit(message: String) {
-    decode_index_file();
-    let tree_hash = "".to_string();
+    let mut index_tree = Node {
+        node_type: NodeType::Tree,
+        mode: 0,
+        name: "root".to_string(),
+        hash: "".to_string(),
+        children: Vec::new(),
+    };
+    decode_index_file(&mut index_tree);
+
+    generate_tree_objects(&mut index_tree);
+    let tree_hash = index_tree.hash.clone();
     let commit_hash = generate_commit_object(tree_hash, message);
     update_head(commit_hash);
 }
@@ -34,7 +42,6 @@ fn travel_tree(node: &mut Node, path: &[&std::ffi::OsStr], mode: u32, hash: Stri
     if path.len() == 1 {
         let new_node = Node {
             node_type: NodeType::Blob,
-            parent: node.hash.clone(),
             mode: mode,
             name: path[0].to_str().unwrap().to_string(),
             hash: hash,
@@ -58,7 +65,6 @@ fn travel_tree(node: &mut Node, path: &[&std::ffi::OsStr], mode: u32, hash: Stri
                 // ない場合は作成して追加して移動
                 let new_node = Node {
                     node_type: NodeType::Tree,
-                    parent: node.hash.clone(),
                     mode: 0o040000,
                     name: first.to_str().unwrap().to_string(),
                     hash: "".to_string(),
@@ -85,10 +91,6 @@ fn decode_index_entry(entry: &[u8], index_tree: &mut Node) -> usize {
     let file_name_size = BigEndian::read_u16(&entry[60..62]);
     let file_path_end_byte = (62 + file_name_size) as usize;
     let file_path = std::str::from_utf8(&entry[62..file_path_end_byte]).unwrap();
-    println!(
-        "mode: {:0>6o}, hash: {:?}, filepath: {:?}",
-        mode, hash, file_path
-    );
 
     construct_tree(index_tree, file_path, mode, hash);
 
@@ -97,28 +99,71 @@ fn decode_index_entry(entry: &[u8], index_tree: &mut Node) -> usize {
     next_byte
 }
 
-fn decode_index_file() {
+fn decode_index_file(index_tree: &mut Node) {
     let mut file = File::open(".git/index").unwrap();
     let mut content = Vec::new();
     file.read_to_end(&mut content).unwrap();
-
-    let mut index_tree = Node {
-        node_type: NodeType::Tree,
-        parent: "".to_string(),
-        mode: 0,
-        name: "root".to_string(),
-        hash: "".to_string(),
-        children: Vec::new(),
-    };
 
     // entriesを上から1 entryずつ消費していく
     let entry_count = BigEndian::read_u32(&content[8..12]);
     let mut entries = &content[12..];
     for _ in 0..entry_count {
-        let next_byte = decode_index_entry(&entries, &mut index_tree);
+        let next_byte = decode_index_entry(&entries, index_tree);
         entries = &entries[next_byte..];
     }
-    println!("{:?}", index_tree);
+}
+
+fn generate_tree_object(node: &Node) -> String {
+    // データの準備
+    let mut contents: Vec<u8> = Vec::new();
+    for child in &node.children {
+        let mode_and_type = format!("{:0>6o} ", child.mode).as_bytes().to_vec();
+        let pre_hash: Vec<u8> = child.hash[..].try_into().unwrap();
+        let hash: Vec<u8> = hex::decode(pre_hash).unwrap();
+        let path_name = format!("{}\0", child.name)[..].as_bytes().to_vec();
+
+        contents.extend(mode_and_type.to_vec());
+        contents.extend(path_name.to_vec());
+        contents.extend(hash.to_vec());
+    }
+
+    let file_length = contents.len();
+    let header = format!("tree {}\0", file_length);
+    let header_vec: Vec<u8> = header.as_bytes().to_vec();
+
+    let full_contents = [&header_vec[..], &contents[..]].concat();
+    let hash = util::compress::hash(&full_contents);
+
+    // ファイルの準備
+    let file_directory = format!(".git/objects/{}", &hash[0..2]);
+    let file_path = format!("{}/{}", file_directory, &hash[2..]);
+    std::fs::create_dir_all(file_directory).unwrap();
+    let mut file = File::create(file_path).unwrap();
+
+    // zlib圧縮
+    let compressed_contents = util::compress::zlib_compress(&full_contents);
+
+    // ファイルに書き込み
+    file.write_all(&compressed_contents).unwrap();
+
+    hash
+}
+
+fn generate_tree_objects(index_tree: &mut Node) {
+    // childrenを左から探索していく深さ優先探索
+    for child in &mut index_tree.children {
+        match child.node_type {
+            NodeType::Blob => {
+                // blobの場合は何もしない
+            }
+            NodeType::Tree => {
+                // treeの場合は再帰的に呼び出す
+                generate_tree_objects(child);
+            }
+        }
+    }
+    let hash = generate_tree_object(index_tree);
+    index_tree.hash = hash;
 }
 
 fn generate_commit_object(tree_hash: String, message: String) -> String {
@@ -161,16 +206,20 @@ fn generate_commit_object(tree_hash: String, message: String) -> String {
     commit.size = content.len();
     let header = format!("commit {}\0", commit.size);
     let content = format!("{}{}", header, String::from_utf8(content).unwrap());
-    let commit_hash = util::compress::hash(&content);
+    let commit_hash = util::compress::hash(&content.as_bytes());
     commit.hash = commit_hash;
 
     let file_directory = format!(".git/objects/{}", &commit.hash[0..2]);
     let file_path = format!("{}/{}", file_directory, &commit.hash[2..]);
-    std::fs::create_dir(file_directory).unwrap();
+    match std::fs::create_dir(file_directory) {
+        Ok(_) => {}
+        Err(ref e) if e.kind() == ErrorKind::AlreadyExists => {}
+        Err(e) => panic!("{}", e),
+    }
     let mut file = File::create(file_path).unwrap();
 
     // zlib圧縮
-    let compressed_contents = util::compress::zlib_compress(content);
+    let compressed_contents = util::compress::zlib_compress(content.as_bytes());
     file.write_all(&compressed_contents).unwrap();
 
     commit.hash

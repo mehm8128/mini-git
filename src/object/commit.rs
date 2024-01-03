@@ -16,6 +16,6 @@ pub struct Sign {
 
 impl Sign {
     pub fn to_string(&self) -> String {
-        format!("{} <{}> {}", self.name, self.email, self.time_stamp)
+        format!("{} <{}> {} +0900", self.name, self.email, self.time_stamp)
     }
 }
