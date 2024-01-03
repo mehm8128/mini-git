@@ -21,7 +21,7 @@ struct IndexEntry {
     uid: [u8; 4],
     gid: [u8; 4],
     file_size: [u8; 4],
-    oid: String,
+    oid: String, // 20byte
     flags: [u8; 2],
     path: String,
 }
@@ -111,7 +111,7 @@ fn update_index(file_names: &[String], hash_list: Vec<String>) {
         content.extend(decoded_oid);
         content.extend(index_entry.flags.to_vec());
         content.extend(index_entry.path.as_bytes().to_vec());
-        let padding = 10 - (index_entry.path.len() % 8);
+        let padding = 4 - (content.len() % 4);
         for _ in 0..padding {
             content.push(0);
         }
