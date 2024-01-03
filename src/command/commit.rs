@@ -30,17 +30,18 @@ pub fn commit(message: String) {
     update_head(commit_hash);
 }
 
-fn travel_tree(node: &mut Node, path: &[&std::ffi::OsStr]) {
+fn travel_tree(node: &mut Node, path: &[&std::ffi::OsStr], mode: u32, hash: String) {
     if path.len() == 1 {
         let new_node = Node {
             node_type: NodeType::Blob,
             parent: node.hash.clone(),
-            mode: 0o100644,
+            mode: mode,
             name: path[0].to_str().unwrap().to_string(),
-            hash: "".to_string(),
+            hash: hash,
             children: Vec::new(),
         };
-        node.children.push(new_node)
+        node.children.push(new_node);
+        return;
     }
 
     if let Some((first, rest)) = path.split_first() {
@@ -51,7 +52,7 @@ fn travel_tree(node: &mut Node, path: &[&std::ffi::OsStr]) {
         {
             Some(child_node) => {
                 // childrenにディレクトリがある場合はそのまま移動
-                travel_tree(child_node, rest);
+                travel_tree(child_node, rest, mode, hash);
             }
             None => {
                 // ない場合は作成して追加して移動
@@ -65,17 +66,17 @@ fn travel_tree(node: &mut Node, path: &[&std::ffi::OsStr]) {
                 };
                 node.children.push(new_node);
                 let new_node = node.children.last_mut().unwrap();
-                travel_tree(new_node, rest);
+                travel_tree(new_node, rest, mode, hash);
             }
         }
     }
 }
 
-fn construct_tree(file_path: &str, index_tree: &mut Node) {
+fn construct_tree(index_tree: &mut Node, file_path: &str, mode: u32, hash: String) {
     let path = Path::new(file_path);
     let path_vec: Vec<_> = path.iter().collect();
 
-    travel_tree(index_tree, &path_vec);
+    travel_tree(index_tree, &path_vec, mode, hash);
 }
 
 fn decode_index_entry(entry: &[u8], index_tree: &mut Node) -> usize {
@@ -89,7 +90,7 @@ fn decode_index_entry(entry: &[u8], index_tree: &mut Node) -> usize {
         mode, hash, file_path
     );
 
-    construct_tree(file_path, index_tree);
+    construct_tree(index_tree, file_path, mode, hash);
 
     let padding = 4 - (file_path_end_byte % 4);
     let next_byte = file_path_end_byte + padding;
