@@ -92,10 +92,9 @@ fn generate_blob_object(file_name: &String) -> String {
     hash
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct IndexEntrySummary {
     index_entry: Vec<u8>,
-    ino: [u8; 4],
     path: String,
 }
 
@@ -124,7 +123,6 @@ fn merge_entries(
                 Some(item) => {
                     let new_entry = IndexEntrySummary {
                         index_entry: item.index_entry.clone(),
-                        ino: item.ino,
                         path: item.path.clone(),
                     };
                     result.push(new_entry);
@@ -172,7 +170,6 @@ fn decode_index_entry(entry: &[u8]) -> (usize, IndexEntrySummary) {
     let next_byte = file_path_end_byte + padding;
     let index_entry_summary = IndexEntrySummary {
         index_entry: entry[..next_byte].to_vec(),
-        ino: entry[20..24].try_into().unwrap(),
         path: path.to_string(),
     };
 
@@ -239,7 +236,6 @@ fn update_index(file_names: &[String], hash_list: Vec<String>) {
 
         let index_entry_summary = IndexEntrySummary {
             index_entry: content.clone(),
-            ino: index_entry.ino,
             path: index_entry.path.to_string(),
         };
         new_entries.push(index_entry_summary);
@@ -249,7 +245,6 @@ fn update_index(file_names: &[String], hash_list: Vec<String>) {
         Some(exists) => merge_entries(exists, new_entries),
         None => new_entries,
     };
-    println!("{:?}", merged_entries);
 
     let mut contents: Vec<u8> = Vec::new();
     // header
