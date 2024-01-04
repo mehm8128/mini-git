@@ -120,13 +120,7 @@ fn merge_entries(
                 .into_iter()
                 .find(|x| x.path == entry.path)
             {
-                Some(item) => {
-                    let new_entry = IndexEntrySummary {
-                        index_entry: item.index_entry.clone(),
-                        path: item.path.clone(),
-                    };
-                    result.push(new_entry);
-                }
+                Some(item) => result.push(item),
                 None => panic!("not found"),
             };
         }

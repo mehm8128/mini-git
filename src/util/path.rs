@@ -23,7 +23,7 @@ pub fn get_head_ref() -> String {
     format!(".git/{}", head[1].to_string().trim_end().to_string())
 }
 
-pub fn get_head_commit() -> Option<String> {
+pub fn get_head_commit_hash() -> Option<String> {
     let head_ref = get_head_ref();
     let head_commit = fs::read_to_string(head_ref);
     match head_commit {

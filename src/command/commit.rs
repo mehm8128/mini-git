@@ -167,7 +167,7 @@ fn generate_tree_objects(index_tree: &mut Node) {
 }
 
 fn generate_commit_object(tree_hash: String, message: String) -> String {
-    let parent = util::path::get_head_commit();
+    let parent = util::path::get_head_commit_hash();
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()

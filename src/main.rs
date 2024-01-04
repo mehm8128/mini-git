@@ -23,7 +23,7 @@ fn main() {
         "add" => {
             let file_names = &args[2..];
             command::add::add(file_names);
-        },
+        }
         "commit" => match &args[2].to_string()[..] {
             "-m" => {
                 let message = &args[3].to_string();
@@ -34,6 +34,18 @@ fn main() {
                 return;
             }
         },
+        "branch" if &args[2] != "-d" => {
+            let branch_name = &args[2].to_string();
+            command::branch::branch(branch_name.to_string());
+        }
+        "branch" => {
+            let branch_name = &args[3].to_string();
+            command::branch::delete_branch(branch_name.to_string());
+        }
+        "checkout" => {
+            let branch_name = &args[2].to_string();
+            command::branch::checkout(branch_name.to_string());
+        }
         "log" => {
             //TODO: impl
         }
