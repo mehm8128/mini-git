@@ -26,13 +26,42 @@ struct IndexEntry {
     path: String,
 }
 
-pub fn add(file_names: &[String]) {
-    let mut hash_list = Vec::new();
-    for file_name in file_names {
+fn travel_dir(file_name: &String, file_path_list: &mut Vec<String>, hash_list: &mut Vec<String>) {
+    if fs::metadata(file_name).unwrap().is_dir() {
+        // 再帰的にaddする
+        for entry in fs::read_dir(file_name).unwrap() {
+            let entry = entry.unwrap();
+            let path = entry.path();
+            if path.starts_with("./.git") {
+                continue;
+            }
+            if path.is_dir() {
+                travel_dir(
+                    &path.to_str().unwrap().to_string(),
+                    file_path_list,
+                    hash_list,
+                );
+                continue;
+            }
+            let file_name = path.to_str().unwrap().to_string();
+            let hash = generate_blob_object(&file_name);
+            file_path_list.push(file_name);
+            hash_list.push(hash);
+        }
+    } else {
         let hash = generate_blob_object(file_name);
+        file_path_list.push(file_name.clone());
         hash_list.push(hash);
     }
-    update_index(file_names, hash_list);
+}
+
+pub fn add(file_names: &[String]) {
+    let mut hash_list = Vec::new();
+    let mut file_path_list = Vec::new();
+    for file_name in file_names {
+        travel_dir(file_name, &mut file_path_list, &mut hash_list);
+    }
+    update_index(&file_path_list, hash_list);
 }
 
 fn generate_blob_object(file_name: &String) -> String {
@@ -51,7 +80,8 @@ fn generate_blob_object(file_name: &String) -> String {
 
     // zlib圧縮
     let contents_will_be_compressed = format!("{}{}", header, contents);
-    let compressed_contents = util::compress::zlib_compress(&contents_will_be_compressed.as_bytes());
+    let compressed_contents =
+        util::compress::zlib_compress(&contents_will_be_compressed.as_bytes());
 
     // ファイルに書き込み
     file.write_all(&compressed_contents).unwrap();
@@ -76,6 +106,10 @@ fn update_index(file_names: &[String], hash_list: Vec<String>) {
     for (index, file_name) in file_names.iter().enumerate() {
         let metadata = fs::metadata(file_name).unwrap();
 
+        let new_file_name = match file_name.strip_prefix("./") {
+            Some(file_name) => file_name,
+            None => file_name,
+        };
         let index_entry = IndexEntry {
             ctime: metadata.st_ctime().to_be_bytes()[4..8].try_into().unwrap(),
             ctime_nsec: metadata.st_ctime_nsec().to_be_bytes()[4..8]
@@ -93,8 +127,8 @@ fn update_index(file_names: &[String], hash_list: Vec<String>) {
             file_size: metadata.st_size().to_be_bytes()[4..8].try_into().unwrap(),
             oid: hash_list[index].clone(),
             // TODO: 正しく計算
-            flags: file_name.len().to_be_bytes()[6..8].try_into().unwrap(),
-            path: file_name.clone(),
+            flags: new_file_name.len().to_be_bytes()[6..8].try_into().unwrap(),
+            path: new_file_name.to_string(),
         };
 
         content.extend(index_entry.ctime.to_vec());
