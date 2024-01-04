@@ -1,6 +1,6 @@
 use std::fs;
-use std::io;
-use std::io::ErrorKind;
+use std::io::{self, ErrorKind};
+use std::path::Path;
 
 pub fn find_git_root() -> Result<String, io::Error> {
     let files = fs::read_dir(".").unwrap();
@@ -32,4 +32,13 @@ pub fn get_head_commit_hash() -> Option<String> {
         Err(ref e) if e.kind() == ErrorKind::NotFound => None,
         Err(e) => panic!("{}", e),
     }
+}
+
+pub fn create_nested_file(file_path: String) -> fs::File {
+    let path = Path::new(file_path.as_str());
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir).unwrap();
+    }
+    let file = fs::File::create(file_path).unwrap();
+    file
 }

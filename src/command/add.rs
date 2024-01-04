@@ -78,8 +78,7 @@ fn generate_blob_object(file_name: &String) -> String {
     // ファイルの準備
     let file_directory = format!(".git/objects/{}", &hash[0..2]);
     let file_path = format!("{}/{}", file_directory, &hash[2..]);
-    std::fs::create_dir_all(file_directory).unwrap();
-    let mut file = File::create(file_path).unwrap();
+    let mut file = util::path::create_nested_file(file_path);
 
     // zlib圧縮
     let contents_will_be_compressed = format!("{}{}", header, contents);

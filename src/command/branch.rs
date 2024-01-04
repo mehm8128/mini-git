@@ -6,7 +6,8 @@ pub fn branch(branch_name: String) {
         Some(hash) => hash,
         None => "".to_string(),
     };
-    let mut file = fs::File::create(format!(".git/refs/heads/{}", branch_name)).unwrap();
+    let mut file =
+        util::path::create_nested_file(format!(".git/refs/heads/{}", branch_name));
     file.write_all(head_commit_hash.as_bytes()).unwrap();
     let mut file = fs::File::create(".git/HEAD").unwrap();
     let content = format!("ref: refs/heads/{}", branch_name);
