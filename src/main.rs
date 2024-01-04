@@ -14,7 +14,7 @@ fn main() {
         return;
     }
 
-    if let Err(e) = util::path::find_git_root(".".to_string()) {
+    if let Err(e) = util::path::find_git_root() {
         println!("{}", e);
         return;
     }
@@ -23,7 +23,7 @@ fn main() {
         "add" => {
             let file_names = &args[2..];
             command::add::add(file_names);
-        }
+        },
         "commit" => match &args[2].to_string()[..] {
             "-m" => {
                 let message = &args[3].to_string();
