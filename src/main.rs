@@ -78,13 +78,15 @@ fn options() -> Command {
 }
 
 fn main() {
-    if let Err(e) = util::path::find_git_root() {
-        println!("{}", e);
-        return;
-    }
-
     let args = options();
     println!("Args: {args:?}");
+
+    if !matches!(args, Command::Init) {
+        if let Err(e) = util::path::find_git_root() {
+            println!("{}", e);
+            return;
+        }
+    }
 
     match args {
         Command::Init => command::init::init(),
