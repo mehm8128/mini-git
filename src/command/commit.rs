@@ -42,9 +42,9 @@ fn travel_tree(node: &mut Node, path: &[&std::ffi::OsStr], mode: u32, hash: Stri
     if path.len() == 1 {
         let new_node = Node {
             node_type: NodeType::Blob,
-            mode: mode,
+            mode,
             name: path[0].to_str().unwrap().to_string(),
-            hash: hash,
+            hash,
             children: Vec::new(),
         };
         node.children.push(new_node);
@@ -95,8 +95,8 @@ fn decode_index_entry(entry: &[u8], index_tree: &mut Node) -> usize {
     construct_tree(index_tree, file_path, mode, hash);
 
     let padding = 4 - (file_path_end_byte % 4);
-    let next_byte = file_path_end_byte + padding;
-    next_byte
+    
+    file_path_end_byte + padding
 }
 
 fn decode_index_file(index_tree: &mut Node) {
@@ -108,7 +108,7 @@ fn decode_index_file(index_tree: &mut Node) {
     let entry_count = BigEndian::read_u32(&content[8..12]);
     let mut entries = &content[12..];
     for _ in 0..entry_count {
-        let next_byte = decode_index_entry(&entries, index_tree);
+        let next_byte = decode_index_entry(entries, index_tree);
         entries = &entries[next_byte..];
     }
 }
@@ -206,7 +206,7 @@ fn generate_commit_object(tree_hash: String, message: String) -> String {
     commit.size = content.len();
     let header = format!("commit {}\0", commit.size);
     let content = format!("{}{}", header, String::from_utf8(content).unwrap());
-    let commit_hash = util::compress::hash(&content.as_bytes());
+    let commit_hash = util::compress::hash(content.as_bytes());
     commit.hash = commit_hash;
 
     let file_directory = format!(".git/objects/{}", &commit.hash[0..2]);
