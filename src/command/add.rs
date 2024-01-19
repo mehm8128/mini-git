@@ -37,8 +37,7 @@ fn travel_dir(
     if fs::metadata(file_name)?.is_dir() {
         // 再帰的にaddする
         for entry in fs::read_dir(file_name)? {
-            let entry = entry?;
-            let path = entry.path();
+            let path = entry?.path();
             if path.starts_with("./.git") {
                 continue;
             }
