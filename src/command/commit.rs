@@ -1,10 +1,10 @@
 use crate::object::commit::{Commit, Sign};
 use crate::util;
 use byteorder::{BigEndian, ByteOrder};
+use chrono::Local;
 use hex;
 use std::io::{ErrorKind, Read};
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::{fs::File, io::Write};
 
 #[derive(Clone, Debug)]
@@ -43,9 +43,9 @@ fn travel_tree(node: &mut Node, path: &[&std::ffi::OsStr], mode: u32, hash: Stri
     if path.len() == 1 {
         let new_node = Node {
             node_type: NodeType::Blob,
-            mode: mode,
+            mode,
             name: path[0].to_str().unwrap().to_string(),
-            hash: hash,
+            hash,
             children: Vec::new(),
         };
         node.children.push(new_node);
@@ -109,7 +109,7 @@ fn decode_index_file(index_tree: &mut Node) -> anyhow::Result<()> {
     let entry_count = BigEndian::read_u32(&content[8..12]);
     let mut entries = &content[12..];
     for _ in 0..entry_count {
-        let next_byte = decode_index_entry(&entries, index_tree)?;
+        let next_byte = decode_index_entry(entries, index_tree)?;
         entries = &entries[next_byte..];
     }
     Ok(())
@@ -172,7 +172,7 @@ fn generate_tree_objects(index_tree: &mut Node) -> anyhow::Result<()> {
 
 fn generate_commit_object(tree_hash: String, message: String) -> anyhow::Result<String> {
     let parent = util::path::get_head_commit_hash();
-    let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+    let now = Local::now();
 
     let mut commit = Commit {
         hash: "".to_string(),
@@ -200,14 +200,14 @@ fn generate_commit_object(tree_hash: String, message: String) -> anyhow::Result<
     for parent in commit.parents {
         content.extend(format!("parent {}\n", parent).as_bytes());
     }
-    content.extend(format!("author {}\n", commit.author.to_string()).as_bytes());
-    content.extend(format!("committer {}\n", commit.commiter.to_string()).as_bytes());
+    content.extend(format!("author {}\n", commit.author).as_bytes());
+    content.extend(format!("committer {}\n", commit.commiter).as_bytes());
     content.extend(format!("\n{}\n", commit.message).as_bytes());
 
     commit.size = content.len();
     let header = format!("commit {}\0", commit.size);
     let content = format!("{}{}", header, String::from_utf8(content)?);
-    let commit_hash = util::compress::hash(&content.as_bytes());
+    let commit_hash = util::compress::hash(content.as_bytes());
     commit.hash = commit_hash;
 
     let file_directory = format!(".git/objects/{}", &commit.hash[0..2]);
