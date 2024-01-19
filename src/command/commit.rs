@@ -1,10 +1,10 @@
 use crate::object::commit::{Commit, Sign};
 use crate::util;
 use byteorder::{BigEndian, ByteOrder};
+use chrono::Local;
 use hex;
 use std::io::{ErrorKind, Read};
 use std::path::Path;
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::{fs::File, io::Write};
 
 #[derive(Clone, Debug)]
@@ -95,7 +95,7 @@ fn decode_index_entry(entry: &[u8], index_tree: &mut Node) -> usize {
     construct_tree(index_tree, file_path, mode, hash);
 
     let padding = 4 - (file_path_end_byte % 4);
-    
+
     file_path_end_byte + padding
 }
 
@@ -168,10 +168,7 @@ fn generate_tree_objects(index_tree: &mut Node) {
 
 fn generate_commit_object(tree_hash: String, message: String) -> String {
     let parent = util::path::get_head_commit_hash();
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
+    let now = Local::now();
 
     let mut commit = Commit {
         hash: "".to_string(),
