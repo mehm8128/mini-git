@@ -73,7 +73,7 @@ fn generate_blob_object(file_name: &String) -> String {
 
     // データの準備
     let header = format!("blob {}\0", file_length);
-    let hash = util::compress::hash(&format!("{}{}", header, contents).as_bytes());
+    let hash = util::compress::hash(format!("{}{}", header, contents).as_bytes());
 
     // ファイルの準備
     let file_directory = format!(".git/objects/{}", &hash[0..2]);
@@ -82,8 +82,7 @@ fn generate_blob_object(file_name: &String) -> String {
 
     // zlib圧縮
     let contents_will_be_compressed = format!("{}{}", header, contents);
-    let compressed_contents =
-        util::compress::zlib_compress(&contents_will_be_compressed.as_bytes());
+    let compressed_contents = util::compress::zlib_compress(contents_will_be_compressed.as_bytes());
 
     // ファイルに書き込み
     file.write_all(&compressed_contents).unwrap();
@@ -110,15 +109,11 @@ fn merge_entries(
 
     let mut result = Vec::<IndexEntrySummary>::new();
 
-    for entry in exists.to_vec() {
+    for entry in exists.iter().cloned() {
         if !common_paths.contains(&entry.path) {
             result.push(entry);
         } else {
-            match new_entries
-                .to_vec()
-                .into_iter()
-                .find(|x| x.path == entry.path)
-            {
+            match new_entries.iter().cloned().find(|x| x.path == entry.path) {
                 Some(item) => result.push(item),
                 None => panic!("not found"),
             };
@@ -146,7 +141,7 @@ fn decode_index_file() -> Option<Vec<IndexEntrySummary>> {
     let entry_count = BigEndian::read_u32(&content[8..12]);
     let mut entries = &content[12..];
     for _ in 0..entry_count {
-        let (next_byte, index_entry_summary) = decode_index_entry(&entries);
+        let (next_byte, index_entry_summary) = decode_index_entry(entries);
         index_entry_summaries.push(index_entry_summary);
         entries = &entries[next_byte..];
     }
@@ -223,9 +218,7 @@ fn update_index(file_names: &[String], hash_list: Vec<String>) {
         content.extend(index_entry.flags.to_vec());
         content.extend(index_entry.path.as_bytes().to_vec());
         let padding = 4 - (content.len() % 4);
-        for _ in 0..padding {
-            content.push(0);
-        }
+        content.resize(content.len() + padding, 0);
 
         let index_entry_summary = IndexEntrySummary {
             index_entry: content.clone(),

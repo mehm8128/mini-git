@@ -18,16 +18,16 @@ pub fn find_git_root() -> Result<String, io::Error> {
 
 pub fn get_head_ref() -> String {
     let head = fs::read_to_string(".git/HEAD").unwrap();
-    let head: Vec<&str> = head.split(" ").collect();
+    let head: Vec<&str> = head.split(' ').collect();
 
-    format!(".git/{}", head[1].to_string().trim_end().to_string())
+    format!(".git/{}", head[1].to_string().trim_end())
 }
 
 pub fn get_head_commit_hash() -> Option<String> {
     let head_ref = get_head_ref();
     let head_commit = fs::read_to_string(head_ref);
     match head_commit {
-        Ok(head_commit) if head_commit != "" => Some(head_commit),
+        Ok(head_commit) if !head_commit.is_empty() => Some(head_commit),
         Ok(_) => None,
         Err(ref e) if e.kind() == ErrorKind::NotFound => None,
         Err(e) => panic!("{}", e),
@@ -39,6 +39,6 @@ pub fn create_nested_file(file_path: String) -> fs::File {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir).unwrap();
     }
-    let file = fs::File::create(file_path).unwrap();
-    file
+    
+    fs::File::create(file_path).unwrap()
 }
