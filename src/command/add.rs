@@ -83,7 +83,7 @@ fn generate_blob_object(file_name: &String) -> Result<String, io::Error> {
     // zlib圧縮
     let contents_will_be_compressed = format!("{}{}", header, contents);
     let compressed_contents =
-        util::compress::zlib_compress(&contents_will_be_compressed.as_bytes())?;
+        util::compress::zlib_compress(contents_will_be_compressed.as_bytes())?;
 
     // ファイルに書き込み
     file.write_all(&compressed_contents)?;
@@ -114,7 +114,7 @@ fn merge_entries(
         if !common_paths.contains(&entry.path) {
             result.push(entry);
         } else {
-            match new_entries.iter().cloned().find(|x| x.path == entry.path) {
+            match new_entries.iter().find(|&x| x.path == entry.path).cloned() {
                 Some(item) => result.push(item),
                 None => panic!("not found"),
             };

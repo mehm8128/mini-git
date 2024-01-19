@@ -121,7 +121,7 @@ fn generate_tree_object(node: &Node) -> anyhow::Result<String> {
     for child in &node.children {
         let mode_and_type = format!("{:0>6o} ", child.mode).as_bytes().to_vec();
         // infrallible
-        let pre_hash: Vec<u8> = child.hash[..].try_into().unwrap();
+        let pre_hash: Vec<u8> = child.hash[..].into();
         let hash: Vec<u8> = hex::decode(pre_hash)?;
         let path_name = format!("{}\0", child.name)[..].as_bytes().to_vec();
 
