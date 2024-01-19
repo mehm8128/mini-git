@@ -129,8 +129,10 @@ fn merge_entries(
     result
 }
 
-fn decode_index_file() -> anyhow::Result<Vec<IndexEntrySummary>> {
-    let mut file = File::open(".git/index")?;
+fn decode_index_file() -> anyhow::Result<Option<Vec<IndexEntrySummary>>> {
+    let Ok(mut file) = File::open(".git/index") else {
+        return Ok(None);
+    };
     let mut content = Vec::new();
     let mut index_entry_summaries = Vec::<IndexEntrySummary>::new();
     file.read_to_end(&mut content).unwrap();
@@ -144,7 +146,7 @@ fn decode_index_file() -> anyhow::Result<Vec<IndexEntrySummary>> {
         entries = &entries[next_byte..];
     }
 
-    Ok(index_entry_summaries)
+    Ok(Some(index_entry_summaries))
 }
 
 fn decode_index_entry(entry: &[u8]) -> Result<(usize, IndexEntrySummary), std::str::Utf8Error> {
@@ -226,7 +228,10 @@ fn update_index(file_names: &[String], hash_list: Vec<String>) -> anyhow::Result
         new_entries.push(index_entry_summary);
     }
 
-    let merged_entries = merge_entries(exists, new_entries);
+    let merged_entries = match exists {
+        Some(e) => merge_entries(e, new_entries),
+        None => new_entries,
+    };
 
     let mut contents: Vec<u8> = Vec::new();
     // header
