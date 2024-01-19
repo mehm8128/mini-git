@@ -199,8 +199,8 @@ fn generate_commit_object(tree_hash: String, message: String) -> String {
     for parent in commit.parents {
         content.extend(format!("parent {}\n", parent).as_bytes());
     }
-    content.extend(format!("author {}\n", commit.author.to_string()).as_bytes());
-    content.extend(format!("committer {}\n", commit.commiter.to_string()).as_bytes());
+    content.extend(format!("author {}\n", commit.author).as_bytes());
+    content.extend(format!("committer {}\n", commit.commiter).as_bytes());
     content.extend(format!("\n{}\n", commit.message).as_bytes());
 
     commit.size = content.len();
