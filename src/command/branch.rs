@@ -1,7 +1,7 @@
 use crate::util;
 use std::{fs, io::Write};
 
-pub fn branch(branch_name: String) -> std::io::Result<()> {
+pub fn new_branch(branch_name: String) -> std::io::Result<()> {
     let head_commit_hash = match util::path::get_head_commit_hash() {
         Some(hash) => hash,
         None => "".to_string(),

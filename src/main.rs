@@ -14,11 +14,12 @@ enum Command {
         message: String,
     },
     Branch {
-        delete: bool,
         name: String,
+        delete: bool,
     },
     Checkout {
-        branch: String,
+        name: String,
+        new_branch: bool,
     },
     Log,
 }
@@ -62,8 +63,9 @@ fn options() -> Command {
     };
 
     let checkout = {
-        let branch = positional("BRANCH").help("Branch name");
-        construct!(Command::Checkout { branch })
+        let new_branch = short('b').help("Create new branch?").switch();
+        let name = positional("BRANCH").help("Branch name");
+        construct!(Command::Checkout { name, new_branch })
             .to_options()
             .command("checkout")
     };
@@ -89,15 +91,20 @@ fn main() -> anyhow::Result<()> {
         Command::Init => command::init::init()?,
         Command::Add { files } => command::add::add(&files)?,
         Command::Commit { message } => command::commit::commit(message)?,
-        Command::Branch { delete, name } => {
+        Command::Branch { name, delete } => {
             if delete {
                 command::branch::delete_branch(name)?;
             } else {
-                command::branch::branch(name)?;
+                // show branches
+                todo!();
             }
         }
-        Command::Checkout { branch } => {
-            command::branch::checkout(branch)?;
+        Command::Checkout { name, new_branch } => {
+            if new_branch {
+                command::branch::new_branch(name)?;
+            } else {
+                command::branch::checkout(name)?;
+            }
         }
         Command::Log => todo!(),
     };
