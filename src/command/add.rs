@@ -4,7 +4,7 @@ use core::panic;
 use hex;
 use std::collections;
 use std::fs::{self, File};
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::os::linux::fs::MetadataExt;
 
 struct IndexHeader {
@@ -29,46 +29,46 @@ struct IndexEntry {
     path: String,
 }
 
-fn travel_dir(file_name: &String, file_path_list: &mut Vec<String>, hash_list: &mut Vec<String>) {
-    if fs::metadata(file_name).unwrap().is_dir() {
+fn travel_dir(
+    file_name: &String,
+    file_path_list: &mut Vec<String>,
+    hash_list: &mut Vec<String>,
+) -> io::Result<()> {
+    if fs::metadata(file_name)?.is_dir() {
         // 再帰的にaddする
-        for entry in fs::read_dir(file_name).unwrap() {
-            let entry = entry.unwrap();
-            let path = entry.path();
+        for entry in fs::read_dir(file_name)? {
+            let path = entry?.path();
             if path.starts_with("./.git") {
                 continue;
             }
+            let file_name = path.to_str().unwrap().to_string();
             if path.is_dir() {
-                travel_dir(
-                    &path.to_str().unwrap().to_string(),
-                    file_path_list,
-                    hash_list,
-                );
+                travel_dir(&file_name, file_path_list, hash_list)?;
                 continue;
             }
-            let file_name = path.to_str().unwrap().to_string();
-            let hash = generate_blob_object(&file_name);
+            let hash = generate_blob_object(&file_name)?;
             file_path_list.push(file_name);
             hash_list.push(hash);
         }
     } else {
-        let hash = generate_blob_object(file_name);
+        let hash = generate_blob_object(file_name)?;
         file_path_list.push(file_name.clone());
         hash_list.push(hash);
     }
+    Ok(())
 }
 
-pub fn add(file_names: &[String]) {
+pub fn add(file_names: &[String]) -> anyhow::Result<()> {
     let mut hash_list = Vec::new();
     let mut file_path_list = Vec::new();
     for file_name in file_names {
-        travel_dir(file_name, &mut file_path_list, &mut hash_list);
+        travel_dir(file_name, &mut file_path_list, &mut hash_list)?;
     }
-    update_index(&file_path_list, hash_list);
+    update_index(&file_path_list, hash_list)
 }
 
-fn generate_blob_object(file_name: &String) -> String {
-    let contents = fs::read_to_string(file_name).unwrap();
+fn generate_blob_object(file_name: &String) -> Result<String, io::Error> {
+    let contents = fs::read_to_string(file_name)?;
     let file_length = contents.len();
 
     // データの準備
@@ -82,12 +82,13 @@ fn generate_blob_object(file_name: &String) -> String {
 
     // zlib圧縮
     let contents_will_be_compressed = format!("{}{}", header, contents);
-    let compressed_contents = util::compress::zlib_compress(contents_will_be_compressed.as_bytes());
+    let compressed_contents =
+        util::compress::zlib_compress(contents_will_be_compressed.as_bytes())?;
 
     // ファイルに書き込み
-    file.write_all(&compressed_contents).unwrap();
+    file.write_all(&compressed_contents)?;
 
-    hash
+    Ok(hash)
 }
 
 #[derive(Clone)]
@@ -113,7 +114,7 @@ fn merge_entries(
         if !common_paths.contains(&entry.path) {
             result.push(entry);
         } else {
-            match new_entries.iter().cloned().find(|x| x.path == entry.path) {
+            match new_entries.iter().find(|&x| x.path == entry.path).cloned() {
                 Some(item) => result.push(item),
                 None => panic!("not found"),
             };
@@ -128,10 +129,9 @@ fn merge_entries(
     result
 }
 
-fn decode_index_file() -> Option<Vec<IndexEntrySummary>> {
-    let mut file = match File::open(".git/index") {
-        Ok(file) => file,
-        Err(_) => return None,
+fn decode_index_file() -> anyhow::Result<Option<Vec<IndexEntrySummary>>> {
+    let Ok(mut file) = File::open(".git/index") else {
+        return Ok(None);
     };
     let mut content = Vec::new();
     let mut index_entry_summaries = Vec::<IndexEntrySummary>::new();
@@ -141,18 +141,18 @@ fn decode_index_file() -> Option<Vec<IndexEntrySummary>> {
     let entry_count = BigEndian::read_u32(&content[8..12]);
     let mut entries = &content[12..];
     for _ in 0..entry_count {
-        let (next_byte, index_entry_summary) = decode_index_entry(entries);
+        let (next_byte, index_entry_summary) = decode_index_entry(entries)?;
         index_entry_summaries.push(index_entry_summary);
         entries = &entries[next_byte..];
     }
 
-    Some(index_entry_summaries)
+    Ok(Some(index_entry_summaries))
 }
 
-fn decode_index_entry(entry: &[u8]) -> (usize, IndexEntrySummary) {
+fn decode_index_entry(entry: &[u8]) -> Result<(usize, IndexEntrySummary), std::str::Utf8Error> {
     let flags = BigEndian::read_u16(&entry[60..62]);
     let file_path_end_byte = (62 + flags) as usize;
-    let path = std::str::from_utf8(&entry[62..file_path_end_byte]).unwrap();
+    let path = std::str::from_utf8(&entry[62..file_path_end_byte])?;
 
     let padding = 4 - (file_path_end_byte % 4);
     let next_byte = file_path_end_byte + padding;
@@ -161,27 +161,28 @@ fn decode_index_entry(entry: &[u8]) -> (usize, IndexEntrySummary) {
         path: path.to_string(),
     };
 
-    (next_byte, index_entry_summary)
+    Ok((next_byte, index_entry_summary))
 }
 
-fn update_index(file_names: &[String], hash_list: Vec<String>) {
+fn update_index(file_names: &[String], hash_list: Vec<String>) -> anyhow::Result<()> {
     // 既にindex fileが存在したらそれを読み込み、entriesをdecode
     // headerは新しく作る(entryの数が違うため)
 
     // 更新されるファイルのentries
-    let exists = decode_index_file();
+    let exists = decode_index_file()?;
 
     // 新しく追加されるファイルのentries
     let mut new_entries = Vec::<IndexEntrySummary>::new();
 
     for (index, file_name) in file_names.iter().enumerate() {
         let mut content: Vec<u8> = Vec::new();
-        let metadata = fs::metadata(file_name).unwrap();
+        let metadata = fs::metadata(file_name)?;
 
         let new_file_name = match file_name.strip_prefix("./") {
             Some(file_name) => file_name,
             None => file_name,
         };
+        // スライスで長さが保証できているのでunwrapのまま
         let index_entry = IndexEntry {
             ctime: metadata.st_ctime().to_be_bytes()[4..8].try_into().unwrap(),
             ctime_nsec: metadata.st_ctime_nsec().to_be_bytes()[4..8]
@@ -213,7 +214,7 @@ fn update_index(file_names: &[String], hash_list: Vec<String>) {
         content.extend(index_entry.uid.to_vec());
         content.extend(index_entry.gid.to_vec());
         content.extend(index_entry.file_size.to_vec());
-        let decoded_oid = hex::decode(index_entry.oid.clone()).unwrap();
+        let decoded_oid = hex::decode(&index_entry.oid)?;
         content.extend(decoded_oid);
         content.extend(index_entry.flags.to_vec());
         content.extend(index_entry.path.as_bytes().to_vec());
@@ -228,7 +229,7 @@ fn update_index(file_names: &[String], hash_list: Vec<String>) {
     }
 
     let merged_entries = match exists {
-        Some(exists) => merge_entries(exists, new_entries),
+        Some(e) => merge_entries(e, new_entries),
         None => new_entries,
     };
 
@@ -248,6 +249,7 @@ fn update_index(file_names: &[String], hash_list: Vec<String>) {
         contents.extend(entry.index_entry);
     }
 
-    let mut file = File::create(".git/index").unwrap();
-    file.write_all(&contents).unwrap();
+    let mut file = File::create(".git/index")?;
+    file.write_all(&contents)?;
+    Ok(())
 }

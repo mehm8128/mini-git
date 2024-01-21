@@ -4,10 +4,10 @@ use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use sha1::{Digest, Sha1};
 
-pub fn zlib_compress(str: &[u8]) -> Vec<u8> {
+pub fn zlib_compress(str: &[u8]) -> std::io::Result<Vec<u8>> {
     let mut e = ZlibEncoder::new(Vec::new(), Compression::default());
-    e.write_all(str).unwrap();
-    e.finish().unwrap()
+    e.write_all(str)?;
+    e.finish()
 }
 
 pub fn hash(str: &[u8]) -> String {
@@ -24,7 +24,7 @@ mod tests {
     #[test]
     fn test_zlib_compress() {
         let str = "test".to_string();
-        let result = zlib_compress(str.as_bytes());
+        let result = zlib_compress(str.as_bytes()).unwrap();
         assert_eq!(result, vec![120, 156, 43, 73, 45, 46, 1, 0, 4, 93, 1, 193]);
     }
 

@@ -77,31 +77,29 @@ fn options() -> Command {
         .run()
 }
 
-fn main() {
+fn main() -> anyhow::Result<()> {
     let args = options();
     println!("Args: {args:?}");
 
     if !matches!(args, Command::Init) {
-        if let Err(e) = util::path::find_git_root() {
-            println!("{}", e);
-            return;
-        }
+        util::path::find_git_root()?;
     }
 
     match args {
-        Command::Init => command::init::init(),
-        Command::Add { files } => command::add::add(&files),
-        Command::Commit { message } => command::commit::commit(message),
+        Command::Init => command::init::init()?,
+        Command::Add { files } => command::add::add(&files)?,
+        Command::Commit { message } => command::commit::commit(message)?,
         Command::Branch { delete, name } => {
             if delete {
-                command::branch::delete_branch(name);
+                command::branch::delete_branch(name)?;
             } else {
-                command::branch::branch(name);
+                command::branch::branch(name)?;
             }
         }
         Command::Checkout { branch } => {
-            command::branch::checkout(branch);
+            command::branch::checkout(branch)?;
         }
         Command::Log => todo!(),
-    }
+    };
+    Ok(())
 }
