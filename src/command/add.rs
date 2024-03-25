@@ -30,7 +30,7 @@ struct IndexEntry {
 }
 
 fn travel_dir(
-    file_name: &String,
+    file_name: &str,
     file_path_list: &mut Vec<String>,
     hash_list: &mut Vec<String>,
 ) -> io::Result<()> {
@@ -52,7 +52,7 @@ fn travel_dir(
         }
     } else {
         let hash = generate_blob_object(file_name)?;
-        file_path_list.push(file_name.clone());
+        file_path_list.push(file_name.to_string());
         hash_list.push(hash);
     }
     Ok(())
@@ -67,7 +67,7 @@ pub fn add(file_names: &[String]) -> anyhow::Result<()> {
     update_index(&file_path_list, hash_list)
 }
 
-fn generate_blob_object(file_name: &String) -> Result<String, io::Error> {
+fn generate_blob_object(file_name: &str) -> Result<String, io::Error> {
     let contents = fs::read_to_string(file_name)?;
     let file_length = contents.len();
 
