@@ -143,7 +143,7 @@ fn generate_tree_object(node: &Node) -> anyhow::Result<String> {
     let mut file = File::create(file_path)?;
 
     // zlib圧縮
-    let compressed_contents = util::compress::zlib_compress(&full_contents)?;
+    let compressed_contents = util::compress::with_zlib(&full_contents)?;
 
     // ファイルに書き込み
     file.write_all(&compressed_contents)?;
@@ -219,7 +219,7 @@ fn generate_commit_object(tree_hash: String, message: String) -> anyhow::Result<
     let mut file = File::create(file_path)?;
 
     // zlib圧縮
-    let compressed_contents = util::compress::zlib_compress(content.as_bytes())?;
+    let compressed_contents = util::compress::with_zlib(content.as_bytes())?;
     file.write_all(&compressed_contents)?;
 
     Ok(commit.hash)

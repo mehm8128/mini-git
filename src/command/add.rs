@@ -84,8 +84,7 @@ fn generate_blob_object(file_name: &str) -> Result<String, io::Error> {
 
     // zlib圧縮
     let contents_will_be_compressed = format!("{header}{contents}");
-    let compressed_contents =
-        util::compress::zlib_compress(contents_will_be_compressed.as_bytes())?;
+    let compressed_contents = util::compress::with_zlib(contents_will_be_compressed.as_bytes())?;
 
     // ファイルに書き込み
     file.write_all(&compressed_contents)?;
