@@ -1,4 +1,5 @@
 use std::fmt;
+
 use chrono::{self, DateTime, Local};
 
 pub struct Commit {
@@ -19,14 +20,13 @@ pub struct Sign {
 
 impl fmt::Display for Sign {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            name,
+            email,
+            time_stamp,
+        } = self;
+        let timestamp = time_stamp.timestamp();
         let timezone = self.time_stamp.format("%z").to_string();
-        write!(
-            f,
-            "{} <{}> {} {}",
-            self.name,
-            self.email,
-            self.time_stamp.timestamp(),
-            timezone
-        )
+        write!(f, "{name} <{email}> {timestamp} {timezone}")
     }
 }
