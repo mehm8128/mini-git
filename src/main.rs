@@ -25,7 +25,7 @@ enum Command {
 }
 
 fn options() -> Command {
-    use bpaf::*;
+    use bpaf::{construct, Parser, positional, pure, short};
 
     let init = pure(Command::Init)
         .to_options()
