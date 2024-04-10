@@ -1,11 +1,13 @@
-use crate::object::commit::{Commit, Sign};
-use crate::util;
-use byteorder::{BigEndian, ByteOrder};
-use chrono::Local;
-use hex;
 use std::io::{ErrorKind, Read};
 use std::path::Path;
 use std::{fs::File, io::Write};
+
+use byteorder::{BigEndian, ByteOrder};
+use chrono::Local;
+use hex;
+
+use crate::object::commit::{Commit, Sign};
+use crate::util;
 
 #[derive(Clone, Debug)]
 enum NodeType {
@@ -15,7 +17,7 @@ enum NodeType {
 
 #[derive(Clone, Debug)]
 struct Node {
-    node_type: NodeType,
+    r#type: NodeType,
     mode: u32,
     name: String,
     hash: String,
@@ -24,10 +26,10 @@ struct Node {
 
 pub fn commit(message: String) -> anyhow::Result<()> {
     let mut index_tree = Node {
-        node_type: NodeType::Tree,
+        r#type: NodeType::Tree,
         mode: 0,
         name: "root".to_string(),
-        hash: "".to_string(),
+        hash: String::new(),
         children: Vec::new(),
     };
     decode_index_file(&mut index_tree)?;
@@ -35,15 +37,15 @@ pub fn commit(message: String) -> anyhow::Result<()> {
     generate_tree_objects(&mut index_tree)?;
     let tree_hash = index_tree.hash.clone();
     let commit_hash = generate_commit_object(tree_hash, message)?;
-    update_head(commit_hash)?;
+    update_head(&commit_hash)?;
     Ok(())
 }
 
-fn travel_tree(node: &mut Node, path: &[&std::ffi::OsStr], mode: u32, hash: String) {
+fn travel_tree(node: &mut Node, path: &[&std::ffi::OsStr], children_mode: u32, hash: String) {
     if path.len() == 1 {
         let new_node = Node {
-            node_type: NodeType::Blob,
-            mode,
+            r#type: NodeType::Blob,
+            mode: children_mode,
             name: path[0].to_str().unwrap().to_string(),
             hash,
             children: Vec::new(),
@@ -52,29 +54,27 @@ fn travel_tree(node: &mut Node, path: &[&std::ffi::OsStr], mode: u32, hash: Stri
         return;
     }
 
+    // TODO: let-elseの方が平坦になる
     if let Some((first, rest)) = path.split_first() {
-        match node
+        if let Some(child_node) = node
             .children
             .iter_mut()
             .find(|child| child.name == first.to_str().unwrap())
         {
-            Some(child_node) => {
-                // childrenにディレクトリがある場合はそのまま移動
-                travel_tree(child_node, rest, mode, hash);
-            }
-            None => {
-                // ない場合は作成して追加して移動
-                let new_node = Node {
-                    node_type: NodeType::Tree,
-                    mode: 0o040000,
-                    name: first.to_str().unwrap().to_string(),
-                    hash: "".to_string(),
-                    children: Vec::new(),
-                };
-                node.children.push(new_node);
-                let new_node = node.children.last_mut().unwrap();
-                travel_tree(new_node, rest, mode, hash);
-            }
+            // childrenにディレクトリがある場合はそのまま移動
+            travel_tree(child_node, rest, children_mode, hash);
+        } else {
+            // ない場合は作成して追加して移動
+            let new_node = Node {
+                r#type: NodeType::Tree,
+                mode: 0o04_0000,
+                name: first.to_str().unwrap().to_string(),
+                hash: String::new(),
+                children: Vec::new(),
+            };
+            node.children.push(new_node);
+            let new_node = node.children.last_mut().unwrap();
+            travel_tree(new_node, rest, children_mode, hash);
         }
     }
 }
@@ -120,18 +120,17 @@ fn generate_tree_object(node: &Node) -> anyhow::Result<String> {
     let mut contents: Vec<u8> = Vec::new();
     for child in &node.children {
         let mode_and_type = format!("{:0>6o} ", child.mode).as_bytes().to_vec();
-        // infrallible
         let pre_hash: Vec<u8> = child.hash[..].into();
         let hash: Vec<u8> = hex::decode(pre_hash)?;
         let path_name = format!("{}\0", child.name)[..].as_bytes().to_vec();
 
-        contents.extend(mode_and_type.to_vec());
-        contents.extend(path_name.to_vec());
-        contents.extend(hash.to_vec());
+        contents.extend(mode_and_type.clone());
+        contents.extend(path_name.clone());
+        contents.extend(hash.clone());
     }
 
     let file_length = contents.len();
-    let header = format!("tree {}\0", file_length);
+    let header = format!("tree {file_length}\0");
     let header_vec: Vec<u8> = header.as_bytes().to_vec();
 
     let full_contents = [&header_vec[..], &contents[..]].concat();
@@ -155,7 +154,7 @@ fn generate_tree_object(node: &Node) -> anyhow::Result<String> {
 fn generate_tree_objects(index_tree: &mut Node) -> anyhow::Result<()> {
     // childrenを左から探索していく深さ優先探索
     for child in &mut index_tree.children {
-        match child.node_type {
+        match child.r#type {
             NodeType::Blob => {
                 // blobの場合は何もしない
             }
@@ -175,7 +174,7 @@ fn generate_commit_object(tree_hash: String, message: String) -> anyhow::Result<
     let now = Local::now();
 
     let mut commit = Commit {
-        hash: "".to_string(),
+        hash: String::new(),
         size: 0,
         tree: tree_hash,
         parents: match parent {
@@ -198,7 +197,7 @@ fn generate_commit_object(tree_hash: String, message: String) -> anyhow::Result<
     let mut content: Vec<u8> = Vec::new();
     content.extend(format!("tree {}\n", commit.tree).as_bytes());
     for parent in commit.parents {
-        content.extend(format!("parent {}\n", parent).as_bytes());
+        content.extend(format!("parent {parent}\n").as_bytes());
     }
     content.extend(format!("author {}\n", commit.author).as_bytes());
     content.extend(format!("committer {}\n", commit.commiter).as_bytes());
@@ -213,7 +212,7 @@ fn generate_commit_object(tree_hash: String, message: String) -> anyhow::Result<
     let file_directory = format!(".git/objects/{}", &commit.hash[0..2]);
     let file_path = format!("{}/{}", file_directory, &commit.hash[2..]);
     match std::fs::create_dir(file_directory) {
-        Ok(_) => {}
+        Ok(()) => {}
         Err(ref e) if e.kind() == ErrorKind::AlreadyExists => {}
         Err(e) => panic!("{}", e),
     }
@@ -226,7 +225,7 @@ fn generate_commit_object(tree_hash: String, message: String) -> anyhow::Result<
     Ok(commit.hash)
 }
 
-fn update_head(commit_hash: String) -> std::io::Result<()> {
+fn update_head(commit_hash: &str) -> std::io::Result<()> {
     let head_ref = util::path::get_head_ref();
     let mut file = File::create(head_ref)?;
     file.write_all(commit_hash.as_bytes())?;

@@ -25,7 +25,7 @@ enum Command {
 }
 
 fn options() -> Command {
-    use bpaf::{construct, Parser, positional, pure, short};
+    use bpaf::{construct, positional, pure, short, Parser};
 
     let init = pure(Command::Init)
         .to_options()
@@ -93,7 +93,7 @@ fn main() -> anyhow::Result<()> {
         Command::Commit { message } => command::commit::commit(message)?,
         Command::Branch { name, delete } => {
             if delete {
-                command::branch::delete_branch(name)?;
+                command::branch::delete(&name)?;
             } else {
                 // show branches
                 todo!();
@@ -101,9 +101,9 @@ fn main() -> anyhow::Result<()> {
         }
         Command::Checkout { name, new_branch } => {
             if new_branch {
-                command::branch::new_branch(name)?;
+                command::branch::create(&name)?;
             } else {
-                command::branch::checkout(name)?;
+                command::branch::checkout(&name)?;
             }
         }
         Command::Log => todo!(),

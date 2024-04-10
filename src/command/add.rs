@@ -1,11 +1,13 @@
-use crate::util;
-use byteorder::{BigEndian, ByteOrder};
 use core::panic;
-use hex;
 use std::collections;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::os::linux::fs::MetadataExt;
+
+use byteorder::{BigEndian, ByteOrder};
+use hex;
+
+use crate::util;
 
 struct IndexHeader {
     signature: [u8; 4],
@@ -64,7 +66,7 @@ pub fn add(file_names: &[String]) -> anyhow::Result<()> {
     for file_name in file_names {
         travel_dir(file_name, &mut file_path_list, &mut hash_list)?;
     }
-    update_index(&file_path_list, hash_list)
+    update_index(&file_path_list, &hash_list)
 }
 
 fn generate_blob_object(file_name: &str) -> Result<String, io::Error> {
@@ -72,8 +74,8 @@ fn generate_blob_object(file_name: &str) -> Result<String, io::Error> {
     let file_length = contents.len();
 
     // データの準備
-    let header = format!("blob {}\0", file_length);
-    let hash = util::compress::hash(format!("{}{}", header, contents).as_bytes());
+    let header = format!("blob {file_length}\0");
+    let hash = util::compress::hash(format!("{header}{contents}").as_bytes());
 
     // ファイルの準備
     let file_directory = format!(".git/objects/{}", &hash[0..2]);
@@ -81,7 +83,7 @@ fn generate_blob_object(file_name: &str) -> Result<String, io::Error> {
     let mut file = util::path::create_nested_file(file_path);
 
     // zlib圧縮
-    let contents_will_be_compressed = format!("{}{}", header, contents);
+    let contents_will_be_compressed = format!("{header}{contents}");
     let compressed_contents =
         util::compress::zlib_compress(contents_will_be_compressed.as_bytes())?;
 
@@ -100,7 +102,7 @@ struct IndexEntrySummary {
 // 既存のentriesと新しく追加されるentriesをmergeする
 // 順番を変えるとファイルが削除されて新しく作成されたとみなされてしまうため、順番は変わらないようにする
 fn merge_entries(
-    exists: Vec<IndexEntrySummary>,
+    exists: &[IndexEntrySummary],
     new_entries: Vec<IndexEntrySummary>,
 ) -> Vec<IndexEntrySummary> {
     let exist_paths: collections::HashSet<_> = exists.iter().map(|x| x.path.clone()).collect();
@@ -113,12 +115,12 @@ fn merge_entries(
     for entry in exists.iter().cloned() {
         if !common_paths.contains(&entry.path) {
             result.push(entry);
-        } else {
-            match new_entries.iter().find(|&x| x.path == entry.path).cloned() {
-                Some(item) => result.push(item),
-                None => panic!("not found"),
-            };
+            continue;
         }
+        match new_entries.iter().find(|&x| x.path == entry.path).cloned() {
+            Some(item) => result.push(item),
+            None => panic!("not found"),
+        };
     }
     for entry in new_entries {
         if !common_paths.contains(&entry.path) {
@@ -164,7 +166,7 @@ fn decode_index_entry(entry: &[u8]) -> Result<(usize, IndexEntrySummary), std::s
     Ok((next_byte, index_entry_summary))
 }
 
-fn update_index(file_names: &[String], hash_list: Vec<String>) -> anyhow::Result<()> {
+fn update_index(file_names: &[String], hash_list: &[String]) -> anyhow::Result<()> {
     // 既にindex fileが存在したらそれを読み込み、entriesをdecode
     // headerは新しく作る(entryの数が違うため)
 
@@ -229,7 +231,7 @@ fn update_index(file_names: &[String], hash_list: Vec<String>) -> anyhow::Result
     }
 
     let merged_entries = match exists {
-        Some(e) => merge_entries(e, new_entries),
+        Some(e) => merge_entries(&e, new_entries),
         None => new_entries,
     };
 
