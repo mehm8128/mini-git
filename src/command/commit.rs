@@ -10,7 +10,7 @@ use itertools::Itertools;
 use crate::object::commit::{Commit, Sign};
 use crate::util;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum NodeType {
     Blob,
     Tree,
@@ -156,15 +156,10 @@ fn generate_tree_object(node: &Node) -> anyhow::Result<String> {
 fn generate_tree_objects(index_tree: &mut Node) -> anyhow::Result<()> {
     // childrenを左から探索していく深さ優先探索
     for child in &mut index_tree.children {
-        match child.r#type {
-            NodeType::Blob => {
-                // blobの場合は何もしない
-            }
-            NodeType::Tree => {
-                // treeの場合は再帰的に呼び出す
-                generate_tree_objects(child)?;
-            }
+        if child.r#type == NodeType::Blob {
+            continue;
         }
+        generate_tree_objects(child)?;
     }
     let hash = generate_tree_object(index_tree)?;
     index_tree.hash = hash;
