@@ -34,11 +34,11 @@ pub fn get_head_commit_hash() -> Option<String> {
     }
 }
 
-pub fn create_nested_file(file_path: String) -> fs::File {
-    let path = Path::new(file_path.as_str());
+pub fn create_nested_file(file_path: impl AsRef<Path>) -> std::io::Result<fs::File> {
+    let path = file_path.as_ref();
     if let Some(dir) = path.parent() {
-        fs::create_dir_all(dir).unwrap();
+        fs::create_dir_all(dir)?;
     }
 
-    fs::File::create(file_path).unwrap()
+    fs::File::create(file_path)
 }

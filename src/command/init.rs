@@ -6,7 +6,7 @@ use std::io::{Result, Write};
 pub fn init() -> Result<()> {
     fs::create_dir(".git")?;
     fs::create_dir(".git/objects")?;
-    util::path::create_nested_file(".git/refs/heads/main".to_string());
+    util::path::create_nested_file(".git/refs/heads/main")?;
     let mut file = File::create(".git/HEAD")?;
     file.write_all(b"ref: refs/heads/main\n")?;
     Ok(())
