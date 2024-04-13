@@ -52,11 +52,12 @@ fn travel_dir(
             file_path_list.push(file_name);
             hash_list.push(hash);
         }
-    } else {
-        let hash = generate_blob_object(file_name)?;
-        file_path_list.push(file_name.to_string());
-        hash_list.push(hash);
+        return Ok(());
     }
+
+    let hash = generate_blob_object(file_name)?;
+    file_path_list.push(file_name.to_string());
+    hash_list.push(hash);
     Ok(())
 }
 
