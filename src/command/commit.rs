@@ -200,10 +200,7 @@ fn generate_commit_object(tree_hash: String, message: String) -> anyhow::Result<
         size: _,
         hash: _,
     } = &commit;
-    let parents: String = parents
-        .iter()
-        .map(|p| format!("parent {p}"))
-        .join("\n");
+    let parents: String = parents.iter().map(|p| format!("parent {p}")).join("\n");
 
     let content = indoc::formatdoc! {r#"
     tree {tree}
