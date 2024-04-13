@@ -5,6 +5,7 @@ use std::{fs::File, io::Write};
 use byteorder::{BigEndian, ByteOrder};
 use chrono::Local;
 use hex;
+use itertools::Itertools;
 
 use crate::object::commit::{Commit, Sign};
 use crate::util;
@@ -174,7 +175,7 @@ fn generate_commit_object(tree_hash: String, message: String) -> anyhow::Result<
     let parent = util::path::get_head_commit_hash();
     let now = Local::now();
 
-    let mut commit = Commit {
+    let commit = Commit {
         hash: String::new(),
         size: 0,
         tree: tree_hash,
@@ -195,23 +196,36 @@ fn generate_commit_object(tree_hash: String, message: String) -> anyhow::Result<
         message,
     };
 
-    let mut content: Vec<u8> = Vec::new();
-    content.extend(format!("tree {}\n", commit.tree).as_bytes());
-    for parent in commit.parents {
-        content.extend(format!("parent {parent}\n").as_bytes());
-    }
-    content.extend(format!("author {}\n", commit.author).as_bytes());
-    content.extend(format!("committer {}\n", commit.commiter).as_bytes());
-    content.extend(format!("\n{}\n", commit.message).as_bytes());
+    let Commit {
+        tree,
+        parents,
+        author,
+        commiter,
+        message,
+        size: _,
+        hash: _,
+    } = &commit;
+    let parents: String = parents
+        .into_iter()
+        .map(|p| format!("parent {p}"))
+        .join("\n");
 
-    commit.size = content.len();
-    let header = format!("commit {}\0", commit.size);
+    let content = indoc::formatdoc! {r#"
+    tree {tree}
+    {parents}
+    author {author}
+    commiter {commiter}
+
+    {message}
+    "#}
+    .into_bytes();
+
+    let header = format!("commit {}\0", content.len());
     let content = format!("{}{}", header, String::from_utf8(content)?);
     let commit_hash = util::compress::hash(content.as_bytes());
-    commit.hash = commit_hash;
 
-    let file_directory = format!(".git/objects/{}", &commit.hash[0..2]);
-    let file_path = format!("{}/{}", file_directory, &commit.hash[2..]);
+    let file_directory = format!(".git/objects/{}", &commit_hash[0..2]);
+    let file_path = format!("{}/{}", file_directory, &commit_hash[2..]);
     // TODO: create_nested_fileでいい気がする
     std::fs::create_dir(file_directory).or_else(|e| match e.kind() {
         ErrorKind::AlreadyExists => Ok(()),
@@ -223,7 +237,7 @@ fn generate_commit_object(tree_hash: String, message: String) -> anyhow::Result<
     let compressed_contents = util::compress::with_zlib(content.as_bytes())?;
     file.write_all(&compressed_contents)?;
 
-    Ok(commit.hash)
+    Ok(commit_hash)
 }
 
 fn update_head(commit_hash: &str) -> std::io::Result<()> {
