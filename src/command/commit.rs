@@ -54,28 +54,29 @@ fn travel_tree(node: &mut Node, path: &[&std::ffi::OsStr], children_mode: u32, h
         return;
     }
 
-    // TODO: let-elseの方が平坦になる
-    if let Some((first, rest)) = path.split_first() {
-        if let Some(child_node) = node
-            .children
-            .iter_mut()
-            .find(|child| child.name == first.to_str().unwrap())
-        {
-            // childrenにディレクトリがある場合はそのまま移動
-            travel_tree(child_node, rest, children_mode, hash);
-        } else {
-            // ない場合は作成して追加して移動
-            let new_node = Node {
-                r#type: NodeType::Tree,
-                mode: 0o04_0000,
-                name: first.to_str().unwrap().to_string(),
-                hash: String::new(),
-                children: Vec::new(),
-            };
-            node.children.push(new_node);
-            let new_node = node.children.last_mut().unwrap();
-            travel_tree(new_node, rest, children_mode, hash);
-        }
+    let Some((first, rest)) = path.split_first() else {
+        return;
+    };
+
+    if let Some(child_node) = node
+        .children
+        .iter_mut()
+        .find(|child| child.name == first.to_str().unwrap())
+    {
+        // childrenにディレクトリがある場合はそのまま移動
+        travel_tree(child_node, rest, children_mode, hash);
+    } else {
+        // ない場合は作成して追加して移動
+        let new_node = Node {
+            r#type: NodeType::Tree,
+            mode: 0o04_0000,
+            name: first.to_str().unwrap().to_string(),
+            hash: String::new(),
+            children: Vec::new(),
+        };
+        node.children.push(new_node);
+        let new_node = node.children.last_mut().unwrap();
+        travel_tree(new_node, rest, children_mode, hash);
     }
 }
 
