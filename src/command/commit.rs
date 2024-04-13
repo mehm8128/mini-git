@@ -212,11 +212,11 @@ fn generate_commit_object(tree_hash: String, message: String) -> anyhow::Result<
 
     let file_directory = format!(".git/objects/{}", &commit.hash[0..2]);
     let file_path = format!("{}/{}", file_directory, &commit.hash[2..]);
-    match std::fs::create_dir(file_directory) {
-        Ok(()) => {}
-        Err(ref e) if e.kind() == ErrorKind::AlreadyExists => {}
-        Err(e) => panic!("{}", e),
-    }
+    // TODO: create_nested_fileでいい気がする
+    std::fs::create_dir(file_directory).or_else(|e| match e.kind() {
+        ErrorKind::AlreadyExists => Ok(()),
+        _ => Err(e),
+    })?;
     let mut file = File::create(file_path)?;
 
     // zlib圧縮
