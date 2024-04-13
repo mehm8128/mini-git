@@ -36,28 +36,28 @@ fn travel_dir(
     file_path_list: &mut Vec<String>,
     hash_list: &mut Vec<String>,
 ) -> io::Result<()> {
-    if fs::metadata(file_name)?.is_dir() {
-        // 再帰的にaddする
-        for entry in fs::read_dir(file_name)? {
-            let path = entry?.path();
-            if path.starts_with("./.git") {
-                continue;
-            }
-            let file_name = path.to_str().unwrap().to_string();
-            if path.is_dir() {
-                travel_dir(&file_name, file_path_list, hash_list)?;
-                continue;
-            }
-            let hash = generate_blob_object(&file_name)?;
-            file_path_list.push(file_name);
-            hash_list.push(hash);
-        }
+    if !fs::metadata(file_name)?.is_dir() {
+        let hash = generate_blob_object(file_name)?;
+        file_path_list.push(file_name.to_string());
+        hash_list.push(hash);
         return Ok(());
     }
 
-    let hash = generate_blob_object(file_name)?;
-    file_path_list.push(file_name.to_string());
-    hash_list.push(hash);
+    // 再帰的にaddする
+    for entry in fs::read_dir(file_name)? {
+        let path = entry?.path();
+        if path.starts_with("./.git") {
+            continue;
+        }
+        let file_name = path.to_str().unwrap().to_string();
+        if path.is_dir() {
+            travel_dir(&file_name, file_path_list, hash_list)?;
+            continue;
+        }
+        let hash = generate_blob_object(&file_name)?;
+        file_path_list.push(file_name);
+        hash_list.push(hash);
+    }
     Ok(())
 }
 
