@@ -80,7 +80,7 @@ fn generate_blob_object(file_name: &str) -> Result<String, io::Error> {
     // ファイルの準備
     let file_directory = format!(".git/objects/{}", &hash[0..2]);
     let file_path = format!("{}/{}", file_directory, &hash[2..]);
-    let mut file = util::path::create_nested_file(file_path);
+    let mut file = util::path::create_nested_file(file_path)?;
 
     // zlib圧縮
     let contents_will_be_compressed = format!("{header}{contents}");
