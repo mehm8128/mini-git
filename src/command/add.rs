@@ -6,6 +6,7 @@ use std::os::linux::fs::MetadataExt;
 
 use byteorder::{BigEndian, ByteOrder};
 use hex;
+use std::path::{Path, PathBuf};
 
 use crate::util;
 
@@ -28,17 +29,17 @@ struct IndexEntry {
     file_size: [u8; 4],
     oid: String, // 20byte
     flags: [u8; 2],
-    path: String,
+    path: PathBuf,
 }
 
 fn travel_dir(
-    file_name: &str,
-    file_path_list: &mut Vec<String>,
+    file_name: impl AsRef<Path>,
+    file_path_list: &mut Vec<PathBuf>,
     hash_list: &mut Vec<String>,
 ) -> io::Result<()> {
-    if !fs::metadata(file_name)?.is_dir() {
-        let hash = generate_blob_object(file_name)?;
-        file_path_list.push(file_name.to_string());
+    if !fs::metadata(&file_name)?.is_dir() {
+        let hash = generate_blob_object(&file_name)?;
+        file_path_list.push(file_name.as_ref().to_path_buf());
         hash_list.push(hash);
         return Ok(());
     }
@@ -49,19 +50,19 @@ fn travel_dir(
         if path.starts_with("./.git") {
             continue;
         }
-        let file_name = path.to_str().unwrap().to_string();
+
         if path.is_dir() {
-            travel_dir(&file_name, file_path_list, hash_list)?;
+            travel_dir(&path, file_path_list, hash_list)?;
             continue;
         }
-        let hash = generate_blob_object(&file_name)?;
-        file_path_list.push(file_name);
+        let hash = generate_blob_object(&path)?;
+        file_path_list.push(path);
         hash_list.push(hash);
     }
     Ok(())
 }
 
-pub fn add(file_names: &[String]) -> anyhow::Result<()> {
+pub fn add(file_names: &[PathBuf]) -> anyhow::Result<()> {
     let mut hash_list = Vec::new();
     let mut file_path_list = Vec::new();
     for file_name in file_names {
@@ -70,7 +71,7 @@ pub fn add(file_names: &[String]) -> anyhow::Result<()> {
     update_index(&file_path_list, &hash_list)
 }
 
-fn generate_blob_object(file_name: &str) -> Result<String, io::Error> {
+fn generate_blob_object(file_name: impl AsRef<Path>) -> Result<String, io::Error> {
     let contents = fs::read_to_string(file_name)?;
     let file_length = contents.len();
 
@@ -96,7 +97,7 @@ fn generate_blob_object(file_name: &str) -> Result<String, io::Error> {
 #[derive(Clone)]
 struct IndexEntrySummary {
     index_entry: Vec<u8>,
-    path: String,
+    path: PathBuf,
 }
 
 // 既存のentriesと新しく追加されるentriesをmergeする
@@ -154,19 +155,19 @@ fn decode_index_file() -> anyhow::Result<Option<Vec<IndexEntrySummary>>> {
 fn decode_index_entry(entry: &[u8]) -> Result<(usize, IndexEntrySummary), std::str::Utf8Error> {
     let flags = BigEndian::read_u16(&entry[60..62]);
     let file_path_end_byte = (62 + flags) as usize;
-    let path = std::str::from_utf8(&entry[62..file_path_end_byte])?;
+    let path = Path::new(std::str::from_utf8(&entry[62..file_path_end_byte])?);
 
     let padding = 4 - (file_path_end_byte % 4);
     let next_byte = file_path_end_byte + padding;
     let index_entry_summary = IndexEntrySummary {
         index_entry: entry[..next_byte].to_vec(),
-        path: path.to_string(),
+        path: path.to_path_buf(),
     };
 
     Ok((next_byte, index_entry_summary))
 }
 
-fn update_index(file_names: &[String], hash_list: &[String]) -> anyhow::Result<()> {
+fn update_index(file_names: &[PathBuf], hash_list: &[String]) -> anyhow::Result<()> {
     // 既にindex fileが存在したらそれを読み込み、entriesをdecode
     // headerは新しく作る(entryの数が違うため)
 
@@ -181,8 +182,8 @@ fn update_index(file_names: &[String], hash_list: &[String]) -> anyhow::Result<(
         let metadata = fs::metadata(file_name)?;
 
         let new_file_name = match file_name.strip_prefix("./") {
-            Some(file_name) => file_name,
-            None => file_name,
+            Ok(file_name) => file_name,
+            Err(_) => file_name,
         };
         // スライスで長さが保証できているのでunwrapのまま
         let index_entry = IndexEntry {
@@ -202,8 +203,10 @@ fn update_index(file_names: &[String], hash_list: &[String]) -> anyhow::Result<(
             file_size: metadata.st_size().to_be_bytes()[4..8].try_into().unwrap(),
             oid: hash_list[index].clone(),
             // TODO: 正しく計算
-            flags: new_file_name.len().to_be_bytes()[6..8].try_into().unwrap(),
-            path: new_file_name.to_string(),
+            flags: new_file_name.to_str().unwrap().len().to_be_bytes()[6..8]
+                .try_into()
+                .unwrap(),
+            path: new_file_name.to_path_buf(),
         };
 
         content.extend(index_entry.ctime.to_vec());
@@ -219,13 +222,13 @@ fn update_index(file_names: &[String], hash_list: &[String]) -> anyhow::Result<(
         let decoded_oid = hex::decode(&index_entry.oid)?;
         content.extend(decoded_oid);
         content.extend(index_entry.flags.to_vec());
-        content.extend(index_entry.path.as_bytes().to_vec());
+        content.extend(index_entry.path.to_str().unwrap().as_bytes().to_vec());
         let padding = 4 - (content.len() % 4);
         content.resize(content.len() + padding, 0);
 
         let index_entry_summary = IndexEntrySummary {
             index_entry: content.clone(),
-            path: index_entry.path.to_string(),
+            path: index_entry.path,
         };
         new_entries.push(index_entry_summary);
     }
