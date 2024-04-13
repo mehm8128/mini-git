@@ -1,4 +1,4 @@
-pub mod init;
 pub mod add;
-pub mod commit;
 pub mod branch;
+pub mod commit;
+pub mod init;

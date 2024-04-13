@@ -39,6 +39,6 @@ pub fn create_nested_file(file_path: String) -> fs::File {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir).unwrap();
     }
-    
+
     fs::File::create(file_path).unwrap()
 }
