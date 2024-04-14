@@ -1,5 +1,6 @@
 use core::panic;
 use std::collections;
+use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::os::linux::fs::MetadataExt;
@@ -132,9 +133,9 @@ fn merge_entries(
     result
 }
 
-fn decode_index_file() -> anyhow::Result<Option<Vec<IndexEntrySummary>>> {
+fn decode_index_file() -> Option<Vec<IndexEntrySummary>> {
     let Ok(mut file) = File::open(".git/index") else {
-        return Ok(None);
+        return None;
     };
     let mut content = Vec::new();
     let mut index_entry_summaries = Vec::<IndexEntrySummary>::new();
@@ -144,27 +145,27 @@ fn decode_index_file() -> anyhow::Result<Option<Vec<IndexEntrySummary>>> {
     let entry_count = BigEndian::read_u32(&content[8..12]);
     let mut entries = &content[12..];
     for _ in 0..entry_count {
-        let (next_byte, index_entry_summary) = decode_index_entry(entries)?;
+        let (next_byte, index_entry_summary) = decode_index_entry(entries);
         index_entry_summaries.push(index_entry_summary);
         entries = &entries[next_byte..];
     }
 
-    Ok(Some(index_entry_summaries))
+    Some(index_entry_summaries)
 }
 
-fn decode_index_entry(entry: &[u8]) -> Result<(usize, IndexEntrySummary), std::str::Utf8Error> {
+fn decode_index_entry(entry: &[u8]) -> (usize, IndexEntrySummary) {
     let flags = BigEndian::read_u16(&entry[60..62]);
     let file_path_end_byte = (62 + flags) as usize;
-    let path = Path::new(std::str::from_utf8(&entry[62..file_path_end_byte])?).to_path_buf();
+    let path: &Path = OsStr::from_bytes(&entry[62..file_path_end_byte]).as_ref();
 
     let padding = 4 - (file_path_end_byte % 4);
     let next_byte = file_path_end_byte + padding;
     let index_entry_summary = IndexEntrySummary {
         index_entry: entry[..next_byte].to_vec(),
-        path,
+        path: path.to_path_buf(),
     };
 
-    Ok((next_byte, index_entry_summary))
+    (next_byte, index_entry_summary)
 }
 
 fn update_index(file_names: &[PathBuf], hash_list: &[String]) -> anyhow::Result<()> {
@@ -172,7 +173,7 @@ fn update_index(file_names: &[PathBuf], hash_list: &[String]) -> anyhow::Result<
     // headerは新しく作る(entryの数が違うため)
 
     // 更新されるファイルのentries
-    let exists = decode_index_file()?;
+    let exists = decode_index_file();
 
     // 新しく追加されるファイルのentries
     let mut new_entries = Vec::<IndexEntrySummary>::new();
