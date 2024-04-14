@@ -4,10 +4,9 @@ use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::os::linux::fs::MetadataExt;
 use std::os::unix::ffi::OsStrExt;
+use std::path::{Path, PathBuf};
 
 use byteorder::{BigEndian, ByteOrder};
-use hex;
-use std::path::{Path, PathBuf};
 
 use crate::util;
 
@@ -156,13 +155,13 @@ fn decode_index_file() -> anyhow::Result<Option<Vec<IndexEntrySummary>>> {
 fn decode_index_entry(entry: &[u8]) -> Result<(usize, IndexEntrySummary), std::str::Utf8Error> {
     let flags = BigEndian::read_u16(&entry[60..62]);
     let file_path_end_byte = (62 + flags) as usize;
-    let path = Path::new(std::str::from_utf8(&entry[62..file_path_end_byte])?);
+    let path = Path::new(std::str::from_utf8(&entry[62..file_path_end_byte])?).to_path_buf();
 
     let padding = 4 - (file_path_end_byte % 4);
     let next_byte = file_path_end_byte + padding;
     let index_entry_summary = IndexEntrySummary {
         index_entry: entry[..next_byte].to_vec(),
-        path: path.to_path_buf(),
+        path,
     };
 
     Ok((next_byte, index_entry_summary))
@@ -179,7 +178,6 @@ fn update_index(file_names: &[PathBuf], hash_list: &[String]) -> anyhow::Result<
     let mut new_entries = Vec::<IndexEntrySummary>::new();
 
     for (index, file_name) in file_names.iter().enumerate() {
-        let mut content: Vec<u8> = Vec::new();
         let metadata = fs::metadata(file_name)?;
 
         let new_file_name = file_name.strip_prefix("./").unwrap_or(file_name);
@@ -207,16 +205,20 @@ fn update_index(file_names: &[PathBuf], hash_list: &[String]) -> anyhow::Result<
             path: new_file_name.to_path_buf(),
         };
 
-        content.extend_from_slice(&index_entry.ctime);
-        content.extend_from_slice(&index_entry.ctime_nsec);
-        content.extend_from_slice(&index_entry.mtime);
-        content.extend_from_slice(&index_entry.mtime_nsec);
-        content.extend_from_slice(&index_entry.dev);
-        content.extend_from_slice(&index_entry.ino);
-        content.extend_from_slice(&index_entry.mode);
-        content.extend_from_slice(&index_entry.uid);
-        content.extend_from_slice(&index_entry.gid);
-        content.extend_from_slice(&index_entry.file_size);
+        let mut content: Vec<u8> = [
+            index_entry.ctime,
+            index_entry.ctime_nsec,
+            index_entry.mtime,
+            index_entry.mtime_nsec,
+            index_entry.dev,
+            index_entry.ino,
+            index_entry.mode,
+            index_entry.uid,
+            index_entry.gid,
+            index_entry.file_size,
+        ]
+        .concat();
+
         let decoded_oid = hex::decode(&index_entry.oid)?;
         content.extend_from_slice(&decoded_oid);
         content.extend_from_slice(&index_entry.flags);

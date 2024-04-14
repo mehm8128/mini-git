@@ -203,16 +203,15 @@ fn generate_commit_object(tree_hash: String, message: String) -> anyhow::Result<
     let parents: String = parents.iter().map(|p| format!("\nparent {p}")).join("");
 
     let content = indoc::formatdoc! {r#"
-    tree {tree}{parents}
-    author {author}
-    commiter {commiter}
+        tree {tree}{parents}
+        author {author}
+        commiter {commiter}
 
-    {message}
-    "#}
-    .into_bytes();
+        {message}
+    "#};
 
     let header = format!("commit {}\0", content.len());
-    let content = format!("{}{}", header, String::from_utf8(content)?);
+    let content = format!("{header}{content}");
     let commit_hash = util::compress::hash(content.as_bytes());
 
     let file_directory = format!(".git/objects/{}", &commit_hash[0..2]);
