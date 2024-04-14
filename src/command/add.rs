@@ -207,20 +207,20 @@ fn update_index(file_names: &[PathBuf], hash_list: &[String]) -> anyhow::Result<
             path: new_file_name.to_path_buf(),
         };
 
-        content.extend(index_entry.ctime.to_vec());
-        content.extend(index_entry.ctime_nsec.to_vec());
-        content.extend(index_entry.mtime.to_vec());
-        content.extend(index_entry.mtime_nsec.to_vec());
-        content.extend(index_entry.dev.to_vec());
-        content.extend(index_entry.ino.to_vec());
-        content.extend(index_entry.mode.to_vec());
-        content.extend(index_entry.uid.to_vec());
-        content.extend(index_entry.gid.to_vec());
-        content.extend(index_entry.file_size.to_vec());
+        content.extend_from_slice(&index_entry.ctime);
+        content.extend_from_slice(&index_entry.ctime_nsec);
+        content.extend_from_slice(&index_entry.mtime);
+        content.extend_from_slice(&index_entry.mtime_nsec);
+        content.extend_from_slice(&index_entry.dev);
+        content.extend_from_slice(&index_entry.ino);
+        content.extend_from_slice(&index_entry.mode);
+        content.extend_from_slice(&index_entry.uid);
+        content.extend_from_slice(&index_entry.gid);
+        content.extend_from_slice(&index_entry.file_size);
         let decoded_oid = hex::decode(&index_entry.oid)?;
-        content.extend(decoded_oid);
-        content.extend(index_entry.flags.to_vec());
-        content.extend(index_entry.path.as_os_str().as_bytes().to_vec());
+        content.extend_from_slice(&decoded_oid);
+        content.extend_from_slice(&index_entry.flags);
+        content.extend_from_slice(index_entry.path.as_os_str().as_bytes());
         let padding = 4 - (content.len() % 4);
         content.resize(content.len() + padding, 0);
 
@@ -243,9 +243,9 @@ fn update_index(file_names: &[PathBuf], hash_list: &[String]) -> anyhow::Result<
         version: 2u32.to_be_bytes(),
         entries: merged_entries.len().to_be_bytes()[4..8].try_into().unwrap(),
     };
-    contents.extend(index_header.signature.to_vec());
-    contents.extend(index_header.version.to_vec());
-    contents.extend(index_header.entries.to_vec());
+    contents.extend_from_slice(&index_header.signature);
+    contents.extend_from_slice(&index_header.version);
+    contents.extend_from_slice(&index_header.entries);
 
     // entries
     for entry in merged_entries {
