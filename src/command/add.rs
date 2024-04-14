@@ -3,6 +3,7 @@ use std::collections;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::os::linux::fs::MetadataExt;
+use std::os::unix::ffi::OsStrExt;
 
 use byteorder::{BigEndian, ByteOrder};
 use hex;
@@ -181,10 +182,7 @@ fn update_index(file_names: &[PathBuf], hash_list: &[String]) -> anyhow::Result<
         let mut content: Vec<u8> = Vec::new();
         let metadata = fs::metadata(file_name)?;
 
-        let new_file_name = match file_name.strip_prefix("./") {
-            Ok(file_name) => file_name,
-            Err(_) => file_name,
-        };
+        let new_file_name = file_name.strip_prefix("./").unwrap_or(file_name);
         // スライスで長さが保証できているのでunwrapのまま
         let index_entry = IndexEntry {
             ctime: metadata.st_ctime().to_be_bytes()[4..8].try_into().unwrap(),
@@ -222,12 +220,12 @@ fn update_index(file_names: &[PathBuf], hash_list: &[String]) -> anyhow::Result<
         let decoded_oid = hex::decode(&index_entry.oid)?;
         content.extend(decoded_oid);
         content.extend(index_entry.flags.to_vec());
-        content.extend(index_entry.path.to_str().unwrap().as_bytes().to_vec());
+        content.extend(index_entry.path.as_os_str().as_bytes().to_vec());
         let padding = 4 - (content.len() % 4);
         content.resize(content.len() + padding, 0);
 
         let index_entry_summary = IndexEntrySummary {
-            index_entry: content.clone(),
+            index_entry: content,
             path: index_entry.path,
         };
         new_entries.push(index_entry_summary);
