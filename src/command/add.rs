@@ -11,28 +11,6 @@ use byteorder::{BigEndian, ByteOrder};
 
 use crate::util;
 
-struct IndexHeader {
-    signature: [u8; 4],
-    version: [u8; 4],
-    entries: [u8; 4],
-}
-
-struct IndexEntry {
-    ctime: [u8; 4],
-    ctime_nsec: [u8; 4],
-    mtime: [u8; 4],
-    mtime_nsec: [u8; 4],
-    dev: [u8; 4],
-    ino: [u8; 4],
-    mode: [u8; 4],
-    uid: [u8; 4],
-    gid: [u8; 4],
-    file_size: [u8; 4],
-    oid: String, // 20byte
-    flags: [u8; 2],
-    path: PathBuf,
-}
-
 fn travel_dir(
     file_name: impl AsRef<Path>,
     file_path_list: &mut Vec<PathBuf>,
@@ -181,55 +159,47 @@ fn update_index(file_names: &[PathBuf], hash_list: &[String]) -> anyhow::Result<
     for (index, file_name) in file_names.iter().enumerate() {
         let metadata = fs::metadata(file_name)?;
 
-        let new_file_name = file_name.strip_prefix("./").unwrap_or(file_name);
-        // スライスで長さが保証できているのでunwrapのまま
-        let index_entry = IndexEntry {
-            ctime: metadata.st_ctime().to_be_bytes()[4..8].try_into().unwrap(),
-            ctime_nsec: metadata.st_ctime_nsec().to_be_bytes()[4..8]
-                .try_into()
-                .unwrap(),
-            mtime: metadata.st_mtime().to_be_bytes()[4..8].try_into().unwrap(),
-            mtime_nsec: metadata.st_mtime_nsec().to_be_bytes()[4..8]
-                .try_into()
-                .unwrap(),
-            dev: metadata.st_dev().to_be_bytes()[4..8].try_into().unwrap(),
-            ino: metadata.st_ino().to_be_bytes()[4..8].try_into().unwrap(),
-            mode: metadata.st_mode().to_be_bytes(),
-            uid: metadata.st_uid().to_be_bytes(),
-            gid: metadata.st_gid().to_be_bytes(),
-            file_size: metadata.st_size().to_be_bytes()[4..8].try_into().unwrap(),
-            oid: hash_list[index].clone(),
-            // TODO: 正しく計算
-            flags: new_file_name.to_str().unwrap().len().to_be_bytes()[6..8]
-                .try_into()
-                .unwrap(),
-            path: new_file_name.to_path_buf(),
-        };
+        let new_file_name = &file_name.strip_prefix("./").unwrap_or(file_name);
+        let change_time = &metadata.st_ctime().to_be_bytes()[4..8];
+        let change_time_nsec = &metadata.st_ctime_nsec().to_be_bytes()[4..8];
+        let modification_time = &metadata.st_mtime().to_be_bytes()[4..8];
+        let modification_time_nsec = &metadata.st_mtime_nsec().to_be_bytes()[4..8];
+        let dev = &metadata.st_dev().to_be_bytes()[4..8];
+        let ino = &metadata.st_ino().to_be_bytes()[4..8];
+        let mode = &metadata.st_mode().to_be_bytes();
+        let user_id = &metadata.st_uid().to_be_bytes();
+        let group_id = &metadata.st_gid().to_be_bytes();
+        let file_size = &metadata.st_size().to_be_bytes()[4..8];
+        let oid = &hash_list[index];
 
         let mut content: Vec<u8> = [
-            index_entry.ctime,
-            index_entry.ctime_nsec,
-            index_entry.mtime,
-            index_entry.mtime_nsec,
-            index_entry.dev,
-            index_entry.ino,
-            index_entry.mode,
-            index_entry.uid,
-            index_entry.gid,
-            index_entry.file_size,
+            change_time,
+            change_time_nsec,
+            modification_time,
+            modification_time_nsec,
+            dev,
+            ino,
+            mode,
+            user_id,
+            group_id,
+            file_size,
         ]
         .concat();
 
-        let decoded_oid = hex::decode(&index_entry.oid)?;
+        let decoded_oid = hex::decode(oid)?;
+        // TODO: 正しく計算
+        let flags = &new_file_name.to_str().unwrap().len().to_be_bytes()[6..8];
+        let path = new_file_name.to_path_buf();
+
         content.extend_from_slice(&decoded_oid);
-        content.extend_from_slice(&index_entry.flags);
-        content.extend_from_slice(index_entry.path.as_os_str().as_bytes());
+        content.extend_from_slice(flags);
+        content.extend_from_slice(path.as_os_str().as_bytes());
         let padding = 4 - (content.len() % 4);
         content.resize(content.len() + padding, 0);
 
         let index_entry_summary = IndexEntrySummary {
             index_entry: content,
-            path: index_entry.path,
+            path,
         };
         new_entries.push(index_entry_summary);
     }
@@ -239,16 +209,12 @@ fn update_index(file_names: &[PathBuf], hash_list: &[String]) -> anyhow::Result<
         None => new_entries,
     };
 
-    let mut contents: Vec<u8> = Vec::new();
     // header
-    let index_header = IndexHeader {
-        signature: "DIRC".as_bytes().try_into().unwrap(),
-        version: 2u32.to_be_bytes(),
-        entries: merged_entries.len().to_be_bytes()[4..8].try_into().unwrap(),
-    };
-    contents.extend_from_slice(&index_header.signature);
-    contents.extend_from_slice(&index_header.version);
-    contents.extend_from_slice(&index_header.entries);
+    let signature = "DIRC".as_bytes();
+    let version = &2u32.to_be_bytes();
+    let entrie_count = &merged_entries.len().to_be_bytes()[4..8];
+
+    let mut contents: Vec<u8> = [signature, version, entrie_count].concat();
 
     // entries
     for entry in merged_entries {
