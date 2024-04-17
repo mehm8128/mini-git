@@ -13,6 +13,8 @@ byteorder = "1.5.0"
 bpaf = "0.9.8"
 anyhow = "1.0.79"
 chrono = "0.4.31"
+itertools = "0.12.1"
+indoc = "2.0.5"
 
 [lints.clippy]
 pedantic = "deny"

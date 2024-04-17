@@ -1,4 +1,4 @@
-use std::env;
+use std::{env, path::PathBuf};
 
 mod command;
 mod object;
@@ -7,20 +7,10 @@ mod util;
 #[derive(Debug, Clone)]
 enum Command {
     Init,
-    Add {
-        files: Vec<String>, /* it's better to use PathBuf here! */
-    },
-    Commit {
-        message: String,
-    },
-    Branch {
-        name: String,
-        delete: bool,
-    },
-    Checkout {
-        name: String,
-        new_branch: bool,
-    },
+    Add { files: Vec<PathBuf> },
+    Commit { message: String },
+    Branch { name: String, delete: bool },
+    Checkout { name: String, new_branch: bool },
     Log,
 }
 
