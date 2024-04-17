@@ -197,8 +197,7 @@ fn generate_commit_object(tree_hash: String, message: String) -> anyhow::Result<
         author,
         commiter,
         message,
-        size: _,
-        hash: _,
+        ..
     } = &commit;
     let parents: String = parents.iter().map(|p| format!("\nparent {p}")).join("");
 

@@ -171,6 +171,11 @@ fn update_index(file_names: &[PathBuf], hash_list: &[String]) -> anyhow::Result<
         let group_id = &metadata.st_gid().to_be_bytes();
         let file_size = &metadata.st_size().to_be_bytes()[4..8];
         let oid = &hash_list[index];
+        let decoded_oid = hex::decode(oid)?;
+        let decoded_oid_slice = decoded_oid.as_slice();
+        // TODO: 正しく計算
+        let flags = &new_file_name.as_os_str().len().to_be_bytes()[6..8];
+        let path = new_file_name.to_path_buf();
 
         let mut content: Vec<u8> = [
             change_time,
@@ -183,17 +188,12 @@ fn update_index(file_names: &[PathBuf], hash_list: &[String]) -> anyhow::Result<
             user_id,
             group_id,
             file_size,
+            decoded_oid_slice,
+            flags,
+            path.as_os_str().as_bytes(),
         ]
         .concat();
 
-        let decoded_oid = hex::decode(oid)?;
-        // TODO: 正しく計算
-        let flags = &new_file_name.to_str().unwrap().len().to_be_bytes()[6..8];
-        let path = new_file_name.to_path_buf();
-
-        content.extend_from_slice(&decoded_oid);
-        content.extend_from_slice(flags);
-        content.extend_from_slice(path.as_os_str().as_bytes());
         let padding = 4 - (content.len() % 4);
         content.resize(content.len() + padding, 0);
 
@@ -210,7 +210,7 @@ fn update_index(file_names: &[PathBuf], hash_list: &[String]) -> anyhow::Result<
     };
 
     // header
-    let signature = "DIRC".as_bytes();
+    let signature = b"DIRC";
     let version = &2u32.to_be_bytes();
     let entrie_count = &merged_entries.len().to_be_bytes()[4..8];
 
